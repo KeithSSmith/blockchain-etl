@@ -1,0 +1,10 @@
+
+\.idea/
+
+blockchain/neo/__pycache__/
+
+venv/
+
+test\.py
+
+mongo/
