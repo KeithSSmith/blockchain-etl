@@ -1,3 +1,4 @@
+import datetime
 from pymongo import MongoClient
 
 class NeoIngest(object):
@@ -27,6 +28,7 @@ class NeoIngest(object):
             if collection == 'blocks':
                 update_query = {'_id': upsert_dict['index']}
                 upsert_dict['_id'] = upsert_dict['index']
+                upsert_dict['block_date'] = datetime.datetime.utcfromtimestamp(upsert_dict['index']).strftime('%Y-%m-%d')
             elif collection in ['transactions', 'fees', 'freezes']:
                 update_query = {'_id': upsert_dict['transaction_hash']}
                 upsert_dict['_id'] = upsert_dict['transaction_hash']

@@ -1,4 +1,7 @@
 import binascii
+import datetime
+import random
+import requests
 from multiprocessing.dummy import Pool as ThreadPool
 from octopus.platforms.NEO.explorer import NeoExplorerRPC
 from octopus.platforms.NEO.disassembler import NeoDisassembler
@@ -8,7 +11,10 @@ from switcheo.Fixed8 import SwitcheoFixed8
 from blockchain.neo.ingest import NeoIngest
 
 class SwitcheoSmartContract(object):
-    def __init__(self, rpc_hostname, rpc_port, rpc_tls,
+    def __init__(self,
+                 rpc_hostname = 'localhost',
+                 rpc_port = '10332',
+                 rpc_tls = False,
                  contract_hash = '91b83e96f2a7c4fdf0c1688441ec61986c7cae26',
                  mongodb_protocol = 'mongodb',
                  mongodb_user = 'switcheo',
@@ -16,6 +22,7 @@ class SwitcheoSmartContract(object):
                  mongodb_hostname = 'localhost',
                  mongodb_port = '27017'
     ):
+        # self.neo_rpc_client = self.get_neo_node()
         self.neo_rpc_client = NeoExplorerRPC(host=rpc_hostname, port=rpc_port, tls=rpc_tls)
         self.contract_hash = contract_hash
         self.function_params = []
@@ -80,9 +87,16 @@ class SwitcheoSmartContract(object):
             'AMAvaXFKtowxB5VpJ928QCSLZD9iMRnhbo'
         ]
 
+    def _get(self, url, params=None):
+        """Perform GET request"""
+        r = requests.get(url=url, params=params, timeout=30)
+        r.raise_for_status()
+        return r.json()
+
     def is_trading_active(self):
         state_dict = {"00": False, "01": True}
         function_name = 'getState'
+        # response_script = self.get_neo_node().invokefunction(script_hash=self.contract_hash,
         response_script = self.neo_rpc_client.invokefunction(script_hash=self.contract_hash,
                                                              operation=function_name,
                                                              params=self.function_params)
@@ -102,15 +116,53 @@ class SwitcheoSmartContract(object):
             token_dict[value['hash']] = key
         return token_dict
 
+    def get_neo_node(self):
+        neo_node_list = []
+        neo_node_max_height = 0
+        for neo_nodes in self._get(url='https://api.neoscan.io/api/main_net/v1/get_all_nodes'):
+            neo_node_dict = {}
+            neo_node = neo_nodes['url'].split(':')
+            neo_node_height = neo_nodes['height']
+            if neo_node_max_height < neo_node_height:
+                neo_node_max_height = neo_node_height
+            neo_node_protocol = neo_node[0]
+            neo_node_url = neo_node[1][2:]
+            neo_node_port = neo_node[2]
+            if neo_node_protocol == 'https':
+                neo_node_rpc_tls = True
+            elif neo_node_protocol == 'http':
+                neo_node_rpc_tls = False
+            else:
+                exit(222)
+            neo_node_dict['neo_node_url'] = neo_node_url
+            neo_node_dict['neo_node_port'] = neo_node_port
+            neo_node_dict['neo_node_tls'] = neo_node_rpc_tls
+            neo_node_dict['neo_node_height'] = neo_node_height
+            neo_node_list.append(neo_node_dict)
+
+        neo_node_max_height_list = []
+        for neo_node in neo_node_list:
+            if neo_node['neo_node_height'] == neo_node_max_height and 'neo.org' not in neo_node['neo_node_url']:
+                neo_node_max_height_list.append(neo_node)
+
+        rand_int = random.randint(0, len(neo_node_max_height_list) - 1)
+        print(neo_node_max_height_list[rand_int])
+        return NeoExplorerRPC(host=neo_node_max_height_list[rand_int]['neo_node_url'],
+                              port=neo_node_max_height_list[rand_int]['neo_node_port'],
+                              tls=neo_node_max_height_list[rand_int]['neo_node_tls'])
+
     def get_neo_block_height(self):
+        # return self.get_neo_node().getblockcount() - 1 # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
         return self.neo_rpc_client.getblockcount() - 1 # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
 
     def get_neo_latest_block(self):
+        # return self.get_neo_node().get_block_by_number(block_number=self.get_neo_block_height())
         return self.neo_rpc_client.get_block_by_number(block_number=self.get_neo_block_height())
 
     def get_neo_bulk_blocks(self, block_number_list):
         pool = ThreadPool(25)
         block_list = pool.map(self.neo_rpc_client.get_block_by_number, block_number_list)
+        # block_list = pool.map(self.get_neo_node().get_block_by_number, block_number_list)
         pool.close()
         pool.join()
         return block_list
@@ -180,6 +232,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'cancel',
@@ -212,6 +265,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'deposit',
@@ -274,6 +328,7 @@ class SwitcheoSmartContract(object):
                 'block_number': block['index'],
                 'block_size': block['size'],
                 'block_time': block['time'],
+                'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'fillOffer',
@@ -330,6 +385,7 @@ class SwitcheoSmartContract(object):
                 'block_number': block['index'],
                 'block_size': block['size'],
                 'block_time': block['time'],
+                'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'fillOffer',
@@ -355,6 +411,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'freezeTrading',
@@ -438,6 +495,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'makeOffer',
@@ -503,6 +561,7 @@ class SwitcheoSmartContract(object):
                 'block_number': block['index'],
                 'block_size': block['size'],
                 'block_time': block['time'],
+                'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'transfer',
@@ -522,6 +581,7 @@ class SwitcheoSmartContract(object):
                 'block_number': block['index'],
                 'block_size': block['size'],
                 'block_time': block['time'],
+                'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'transfer',
@@ -540,6 +600,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'unfreezeTrading',
@@ -554,6 +615,7 @@ class SwitcheoSmartContract(object):
             'block_number': block['index'],
             'block_size': block['size'],
             'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'withdrawal',

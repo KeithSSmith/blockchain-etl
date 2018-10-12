@@ -12,3 +12,5 @@ mongo/
 blockchain_etl\.egg-info/
 
 dist/
+
+build/
