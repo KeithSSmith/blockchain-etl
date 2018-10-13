@@ -20,7 +20,8 @@ class SwitcheoSmartContract(object):
                  mongodb_user = 'switcheo',
                  mongodb_password = 'switcheo',
                  mongodb_hostname = 'localhost',
-                 mongodb_port = '27017'
+                 mongodb_port = '27017',
+                 mongodb_db = 'neo'
     ):
         # self.neo_rpc_client = self.get_neo_node()
         self.neo_rpc_client = NeoExplorerRPC(host=rpc_hostname, port=rpc_port, tls=rpc_tls)
@@ -72,7 +73,7 @@ class SwitcheoSmartContract(object):
         }
         self.sc = SwitcheoClient(api_url='https://api.switcheo.network/')
         self.ni = NeoIngest(protocol=mongodb_protocol, username=mongodb_user, password=mongodb_password,
-                            hostname=mongodb_hostname, port=mongodb_port)
+                            hostname=mongodb_hostname, port=mongodb_port, database=mongodb_db)
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
         self.neo_token_dict = self.get_neo_token_dict()
