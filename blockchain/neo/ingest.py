@@ -3,8 +3,8 @@ from pymongo import MongoClient
 
 class NeoIngest(object):
 
-    def __init__(self, hostname, protocol='mongodb+srv', username='switcheo', password='switcheo', port='27017'):
-        self.mongo_connection_string = protocol + '://' + username + ':' + password + '@' + hostname + ':' + port + '/'
+    def __init__(self, hostname, protocol='mongodb+srv', username='switcheo', password='switcheo', port='27017', db='neo'):
+        self.mongo_connection_string = protocol + '://' + username + ':' + password + '@' + hostname + ':' + port + '/' + db
         self.mongo_client = MongoClient(self.mongo_connection_string)
         self.mongo_db = self.mongo_client['neo']
 
