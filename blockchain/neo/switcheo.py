@@ -5,23 +5,26 @@ import requests
 from multiprocessing.dummy import Pool as ThreadPool
 from octopus.platforms.NEO.explorer import NeoExplorerRPC
 from octopus.platforms.NEO.disassembler import NeoDisassembler
+from octopus.engine.explorer import RequestsConnectionError
 from switcheo.switcheo_client import SwitcheoClient
-from switcheo.neo.utils import neo_get_address_from_scripthash, neo_get_scripthash_from_address, reverse_hex
+from switcheo.neo.utils import create_offer_hash, neo_get_address_from_scripthash,\
+    neo_get_scripthash_from_address, reverse_hex
 from switcheo.Fixed8 import SwitcheoFixed8
 from blockchain.neo.ingest import NeoIngest
 
+
 class SwitcheoSmartContract(object):
     def __init__(self,
-                 rpc_hostname = 'localhost',
-                 rpc_port = '10332',
-                 rpc_tls = False,
-                 contract_hash = '91b83e96f2a7c4fdf0c1688441ec61986c7cae26',
-                 mongodb_protocol = 'mongodb',
-                 mongodb_user = 'switcheo',
-                 mongodb_password = 'switcheo',
-                 mongodb_hostname = 'localhost',
-                 mongodb_port = '27017',
-                 mongodb_db = 'neo'
+                 rpc_hostname='localhost',
+                 rpc_port='10332',
+                 rpc_tls=False,
+                 contract_hash='91b83e96f2a7c4fdf0c1688441ec61986c7cae26',
+                 mongodb_protocol='mongodb',
+                 mongodb_user='switcheo',
+                 mongodb_password='switcheo',
+                 mongodb_hostname='localhost',
+                 mongodb_port='27017',
+                 mongodb_db='neo'
     ):
         # self.neo_rpc_client = self.get_neo_node()
         self.neo_rpc_client = NeoExplorerRPC(host=rpc_hostname, port=rpc_port, tls=rpc_tls)
@@ -154,7 +157,10 @@ class SwitcheoSmartContract(object):
 
     def get_neo_block_height(self):
         # return self.get_neo_node().getblockcount() - 1 # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
-        return self.neo_rpc_client.getblockcount() - 1 # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
+        try:
+            return self.neo_rpc_client.getblockcount() - 1  # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
+        except RequestsConnectionError:
+            self.get_neo_block_height()
 
     def get_neo_latest_block(self):
         # return self.get_neo_node().get_block_by_number(block_number=self.get_neo_block_height())
@@ -162,8 +168,11 @@ class SwitcheoSmartContract(object):
 
     def get_neo_bulk_blocks(self, block_number_list):
         pool = ThreadPool(25)
-        block_list = pool.map(self.neo_rpc_client.get_block_by_number, block_number_list)
-        # block_list = pool.map(self.get_neo_node().get_block_by_number, block_number_list)
+        try:
+            # block_list = pool.map(self.get_neo_node().get_block_by_number, block_number_list)
+            block_list = pool.map(self.neo_rpc_client.get_block_by_number, block_number_list)
+        except RequestsConnectionError:
+            self.get_neo_bulk_blocks(block_number_list=block_number_list)
         pool.close()
         pool.join()
         return block_list
@@ -491,6 +500,13 @@ class SwitcheoSmartContract(object):
                     offer_amount_original = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:]).rjust(16, '0')
                     offer_amount = int(reverse_hex(offer_amount_original), 16)
                     offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
+
+        offer_hash = create_offer_hash(neo_address=maker_address,
+                                       offer_asset_amt=offer_amount,
+                                       offer_asset_hash=offer_asset,
+                                       want_asset_amt=want_amount,
+                                       want_asset_hash=want_asset,
+                                       txn_uuid=switcheo_transaction_id)
         make_offer_dict = {
             'block_hash': block['hash'][2:],
             'block_number': block['index'],
@@ -515,7 +531,8 @@ class SwitcheoSmartContract(object):
             'offer_asset': offer_asset,
             'offer_asset_name': offer_asset_name,
             'maker_address_original': maker_address_original,
-            'maker_address': maker_address
+            'maker_address': maker_address,
+            'offer_hash': offer_hash
         }
         return make_offer_dict
 

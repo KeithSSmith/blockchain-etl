@@ -1,6 +1,7 @@
 import datetime
 from pymongo import MongoClient
 
+
 class NeoIngest(object):
 
     def __init__(self, hostname, protocol='mongodb+srv', username='switcheo', password='switcheo', port='27017', database='neo'):
