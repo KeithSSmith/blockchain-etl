@@ -86,6 +86,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['ceab719b8baa2310f232ee0d277c061704541cfb'] = 'ONT'
         self.neo_token_dict['9577c3f972d769220d69d1c4ddbd617c44d067aa'] = 'GALA'
         self.neo_token_dict['a58b56b30425d3d1f8902034996fcac4168ef71d'] = 'ASA'
+        self.neo_token_dict['3a4acd3647086e7c44398aac0349802e6a171129'] = 'NEX'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
