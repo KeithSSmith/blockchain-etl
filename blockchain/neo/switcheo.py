@@ -459,12 +459,6 @@ class SwitcheoSmartContract(object):
             switcheo_transaction_id_original = self.zero_pad_if_odd_length_string(str(script[4]).split()[1][2:]).rjust(64, '0')
             switcheo_transaction_id = 'v1.1' if contract_hash == '0ec5712e0f7c63e4b0fea31029a28cea5e9d551f' else 'v1.5'
         else:
-            if len(str(script[0]).split()[1][2:]) == 16:
-                switcheo_transaction_id_original = str(script[0]).split()[1][2:]
-                switcheo_transaction_id = 'v1'
-            else:
-                switcheo_transaction_id_original = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:]).rjust(72, '0') # Unknown nonce from v1.5: https://neoscan.io/transaction/7BC7A3A2BB81AE772821C79A0357F0B905832852CF3150594FA56B63E5402C24
-                switcheo_transaction_id = bytes.fromhex(switcheo_transaction_id_original).decode('utf-8')
             want_asset_original = self.zero_pad_if_odd_length_string(str(script[2]).split()[1][2:])
             want_asset = reverse_hex(want_asset_original)
             want_asset_name = self.neo_token_dict[want_asset]
@@ -500,13 +494,19 @@ class SwitcheoSmartContract(object):
                     offer_amount_original = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:]).rjust(16, '0')
                     offer_amount = int(reverse_hex(offer_amount_original), 16)
                     offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
+            if len(str(script[0]).split()[1][2:]) == 16:
+                switcheo_transaction_id_original = str(script[0]).split()[1][2:]
+                switcheo_transaction_id = 'v1'
+            else:
+                switcheo_transaction_id_original = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:]).rjust(72, '0') # Unknown nonce from v1.5: https://neoscan.io/transaction/7BC7A3A2BB81AE772821C79A0357F0B905832852CF3150594FA56B63E5402C24
+                switcheo_transaction_id = bytes.fromhex(switcheo_transaction_id_original).decode('utf-8')
+                offer_hash = create_offer_hash(neo_address=maker_address,
+                                               offer_asset_amt=offer_amount,
+                                               offer_asset_hash=offer_asset,
+                                               want_asset_amt=want_amount,
+                                               want_asset_hash=want_asset,
+                                               txn_uuid=switcheo_transaction_id)
 
-        offer_hash = create_offer_hash(neo_address=maker_address,
-                                       offer_asset_amt=offer_amount,
-                                       offer_asset_hash=offer_asset,
-                                       want_asset_amt=want_amount,
-                                       want_asset_hash=want_asset,
-                                       txn_uuid=switcheo_transaction_id)
         make_offer_dict = {
             'block_hash': block['hash'][2:],
             'block_number': block['index'],
