@@ -10,6 +10,7 @@ class NeoIngest(object):
         self.mongo_db = self.mongo_client['neo']
 
     def mongo_upsert_one(self, collection, upsert_dict):
+        update_query = {'_id': upsert_dict['_id']}
         if collection == 'blocks':
             update_query = {'_id': upsert_dict['index']}
             upsert_dict['_id'] = upsert_dict['index']
@@ -17,9 +18,9 @@ class NeoIngest(object):
             update_query = {'_id': upsert_dict['transaction_hash']}
             upsert_dict['_id'] = upsert_dict['transaction_hash']
         update_values = {'$set': upsert_dict}
-        print(self.mongo_db[collection].update_one(filter=update_query,
-                                                   update=update_values,
-                                                   upsert=True).upserted_id)
+        self.mongo_db[collection].update_one(filter=update_query,
+                                             update=update_values,
+                                             upsert=True)
 
     def mongo_upsert_many(self, collection, upsert_list_dict):
         bulk = self.mongo_db[collection].initialize_unordered_bulk_op()
@@ -29,7 +30,7 @@ class NeoIngest(object):
             if collection == 'blocks':
                 update_query = {'_id': upsert_dict['index']}
                 upsert_dict['_id'] = upsert_dict['index']
-                upsert_dict['block_date'] = datetime.datetime.utcfromtimestamp(upsert_dict['index']).strftime('%Y-%m-%d')
+                upsert_dict['block_date'] = datetime.datetime.utcfromtimestamp(upsert_dict['time']).strftime('%Y-%m-%d')
             elif collection in ['transactions', 'fees', 'freezes']:
                 update_query = {'_id': upsert_dict['transaction_hash']}
                 upsert_dict['_id'] = upsert_dict['transaction_hash']

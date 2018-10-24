@@ -74,11 +74,30 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'unfreezeTrading').decode('utf-8')): 'unfreezeTrading',
             str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist'
         }
+        self.offer_hash_functions = {
+            'cancel': self.offer_hash_cancel,
+            'makeOffer': self.offer_hash_make,
+            'fillOffer': self.offer_hash_fill
+        }
+        self.address_functions = {
+            'cancel': self.address_cancel,
+            'deposit': self.address_deposit,
+            'fillOffer': self.address_fill,
+            'makeOffer': self.address_make,
+            'withdrawal': self.address_withdrawal
+        }
+        self.address_transaction_dict = {
+            'deposit': 'deposit_address',
+            'fillOffer': 'taker_address',
+            'makeOffer': 'maker_address',
+            'withdrawal': 'withdraw_address'
+        }
         self.sc = SwitcheoClient(api_url='https://api.switcheo.network/')
         self.ni = NeoIngest(protocol=mongodb_protocol, username=mongodb_user, password=mongodb_password,
                             hostname=mongodb_hostname, port=mongodb_port, database=mongodb_db)
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
+        self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -114,6 +133,13 @@ class SwitcheoSmartContract(object):
         for key, value in neo_contracts.items():
             contract_list.append(value)
         return contract_list
+
+    def get_neo_contract_dict(self):
+        contract_dict = {}
+        neo_contracts = self.sc.get_contracts()['NEO']
+        for key, value in neo_contracts.items():
+            contract_dict[value] = key
+        return contract_dict
 
     def get_neo_token_dict(self):
         token_dict = {}
@@ -209,6 +235,8 @@ class SwitcheoSmartContract(object):
             for s in script_disassembler:
                 if str(s).split()[0] == "APPCALL":
                     contract_hash = reverse_hex(str(s).split()[1][2:])
+                    txn['contract_hash'] = contract_hash
+                    txn['contract_hash_version'] = self.neo_contract_dict[contract_hash]
             if contract_hash != '78e6d16b914fe15bc16150aeb11d0c2a8e532bdd':
                 for disassemble in script_disassembler:
                     disassemble_list = str(disassemble).split()
@@ -245,11 +273,13 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
+            'offer_hash_original': str(script[0]).split()[1][2:],
+            'offer_hash': reverse_hex(str(script[0]).split()[1][2:]),
+            'switcheo_transaction_type': 'cancel',
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
-            'switcheo_transaction_type': 'cancel',
-            'offer_hash_original': str(script[0]).split()[1][2:],
-            'offer_hash': reverse_hex(str(script[0]).split()[1][2:])
         }
         return cancel_dict
 
@@ -278,6 +308,8 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'deposit',
@@ -341,6 +373,8 @@ class SwitcheoSmartContract(object):
                 'block_size': block['size'],
                 'block_time': block['time'],
                 'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+                'contract_hash': txn['contract_hash'],
+                'contract_hash_version': txn['contract_hash_version'],
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'fillOffer',
@@ -398,6 +432,8 @@ class SwitcheoSmartContract(object):
                 'block_size': block['size'],
                 'block_time': block['time'],
                 'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+                'contract_hash': txn['contract_hash'],
+                'contract_hash_version': txn['contract_hash_version'],
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'fillOffer',
@@ -424,6 +460,8 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'freezeTrading',
@@ -437,6 +475,7 @@ class SwitcheoSmartContract(object):
 
     def deserialize_make_offer(self, block, txn, script):
         contract_hash = None
+        offer_hash = None
         for s in script:
             if str(s).split()[0] == "APPCALL":  # Needed for v1 Contract with 5 variables in block 2087928; tx: E839E289CC8D435EA49EC5FA66427085A10D3D2508FBC164C0BA2DB53BCB0198
                 contract_hash = reverse_hex(str(s).split()[1][2:])
@@ -515,6 +554,8 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'makeOffer',
@@ -582,6 +623,8 @@ class SwitcheoSmartContract(object):
                 'block_size': block['size'],
                 'block_time': block['time'],
                 'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+                'contract_hash': txn['contract_hash'],
+                'contract_hash_version': txn['contract_hash_version'],
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'transfer',
@@ -602,6 +645,8 @@ class SwitcheoSmartContract(object):
                 'block_size': block['size'],
                 'block_time': block['time'],
                 'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+                'contract_hash': txn['contract_hash'],
+                'contract_hash_version': txn['contract_hash_version'],
                 'transaction_hash': txn['txid'][2:],
                 'transaction_type': txn['type'],
                 'switcheo_transaction_type': 'transfer',
@@ -621,6 +666,8 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'unfreezeTrading',
@@ -636,6 +683,8 @@ class SwitcheoSmartContract(object):
             'block_size': block['size'],
             'block_time': block['time'],
             'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
             'transaction_hash': txn['txid'][2:],
             'transaction_type': txn['type'],
             'switcheo_transaction_type': 'withdrawal',
@@ -693,6 +742,337 @@ class SwitcheoSmartContract(object):
             self.ni.mongo_upsert_many(collection='freezes', upsert_list_dict=self.switcheo_freezes)
         self.ni.mongo_upsert_many(collection='blocks', upsert_list_dict=neo_blocks)
 
+    def deserialize_offer_hash(self, txn):
+        return self.offer_hash_functions[txn['switcheo_transaction_type']](txn)
+
+    def offer_hash_cancel(self, txn):
+        return self.ni.mongo_db['offer_hash'].update_one(
+                filter={'_id': txn['offer_hash']},
+                update={
+                    '$set':
+                        {
+                            'cancel_txn': txn,
+                            'status': 'closed',
+                            'maker_amount_open': 0
+                        }
+                },
+                upsert=True
+            )
+
+    def offer_hash_make(self, txn):
+        txn['_id'] = txn['offer_hash']
+        txn['status'] = 'open'
+        txn['maker_amount_open'] = txn['offer_amount']
+        txn['amount_filled'] = 0
+        return self.ni.mongo_db['offer_hash'].update_one(
+                filter={'_id': txn['_id']},
+                update={'$set': txn},
+                upsert=True
+            )
+
+    def offer_hash_fill(self, txn):
+        self.ni.mongo_db['offer_hash'].update_one(
+            filter={'_id': txn['offer_hash']},
+            update={
+                '$addToSet': {
+                    'fill_txns': {
+                        '$each': [txn]
+                    }
+                }
+            },
+            upsert=True
+        )
+        offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
+        if 'maker_amount_open' in offer_hash and offer_hash['maker_amount_open'] is not None and txn['taker_amount'] is not None:
+            maker_amount_open = offer_hash['maker_amount_open'] - txn['taker_amount']
+        elif txn['taker_amount'] is not None:
+            maker_amount_open = 0 - txn['taker_amount']
+        else:
+            maker_amount_open = None
+        if 'amount_filled' in offer_hash and offer_hash['amount_filled'] is not None and txn['taker_amount'] is not None:
+            amount_filled = offer_hash['amount_filled'] + txn['taker_amount']
+        elif txn['taker_amount'] is not None:
+            amount_filled = txn['taker_amount']
+        else:
+            amount_filled = None
+        if maker_amount_open == 0:
+            return self.ni.mongo_db['offer_hash'].update_one(
+                    filter={'_id': txn['offer_hash']},
+                    update={
+                        '$set':
+                            {
+                                'status': 'filled',
+                                'maker_amount_open': 0,
+                                'amount_filled': amount_filled,
+                            }
+                    },
+                    upsert=True
+                )
+        else:
+            return self.ni.mongo_db['offer_hash'].update_one(
+                    filter={'_id': txn['offer_hash']},
+                    update={
+                        '$set':
+                            {
+                                'maker_amount_open': maker_amount_open,
+                                'amount_filled': amount_filled,
+                            }
+                    },
+                    upsert=True
+                )
+
+    def deserialize_address(self, txn):
+        return self.address_functions[txn['switcheo_transaction_type']](txn)
+
+    def address_cancel(self, txn):
+        # print(txn)
+        offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
+        if 'maker_address' in offer_hash:
+            cancel = {
+                'block_date': txn['block_date'],
+                'block_number': txn['block_number'],
+                'block_time': txn['block_time'],
+                'offer_hash': txn['offer_hash'],
+                'transaction_hash': txn['transaction_hash'],
+                # 'amount_filled': offer_hash['amount_filled'],
+                'offer_amount': offer_hash['offer_amount'],
+                'offer_amount_fixed8': offer_hash['offer_amount_fixed8'],
+                'offer_asset_name': offer_hash['offer_asset_name'],
+                'want_amount': offer_hash['want_amount'],
+                'want_amount_fixed8': offer_hash['want_amount_fixed8'],
+                'want_asset_name': offer_hash['want_asset_name']
+            }
+            address = offer_hash['maker_address']
+            print(address)
+            return self.ni.mongo_db['addresses'].update_one(
+                filter={'_id': address},
+                update={
+                    '$addToSet': {
+                        'cancels': {
+                            '$each': [cancel]
+                        }
+                    }
+                },
+                upsert=True
+            )
+
+    def address_deposit(self, txn):
+        balance = {}
+        # address = self.ni.mongo_db['addresses'].find_one({'_id': })
+        # if address is None:
+        #     address = {
+        #         '_id': txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+            #          txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+            # }
+        deposit = {
+            'block_date': txn['block_date'],
+            'block_number': txn['block_number'],
+            'block_time': txn['block_time'],
+            'deposit_amount': txn['deposit_amount'],
+            'deposit_amount_fixed8': txn['deposit_amount_fixed8'],
+            'deposit_asset_name': txn['deposit_asset_name'],
+            'transaction_hash': txn['transaction_hash']
+        }
+        address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+        print(address)
+        return self.ni.mongo_db['addresses'].update_one(
+            filter={'_id': address},
+            update={
+                '$addToSet': {
+                    'deposits': {
+                        '$each': [deposit]
+                    }
+                }
+            },
+            upsert=True
+        )
+        # if 'balance' not in address:
+        #     address['balance'] = []
+        #     balance['asset_amount'] = deposit['deposit_amount']
+        #     balance['asset_name'] = deposit['deposit_asset_name']
+        #     address['balance'].append(balance)
+        # else:
+        #     i = 0
+        #     asset_exists = False
+        #     for asset in address['balance']:
+        #         i += 1
+        #         if asset['asset_name'] == deposit['deposit_asset_name']:
+        #             asset_exists = True
+        #             address['balance'][i]['asset_name'] = asset['asset_amount'] + deposit['deposit_amount']
+        #             break
+        #     if not asset_exists:
+        #         balance['asset_amount'] = deposit['deposit_amount']
+        #         balance['asset_name'] = deposit['deposit_asset_name']
+        #         address['balance'].append(balance)
+        # if 'stats' not in address:
+        #     address['stats'] = {}
+        # address['stats']['deposits'] = len(address['deposits'])
+        # return address
+
+    def address_fill(self, txn):
+        if txn['taker_amount'] is not None:
+            # print(txn)
+            # address = self.ni.mongo_db['addresses'].find_one(
+            #     {'_id': txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]})
+            # if address is None:
+            #     address = {
+            #         '_id': txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+            #     }
+            # print(address)
+            offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
+            if 'want_amount' in offer_hash:
+                fill = {
+                    'block_date': txn['block_date'],
+                    'block_number': txn['block_number'],
+                    'block_time': txn['block_time'],
+                    'fee_amount': txn['fee_amount'],
+                    'fee_amount_fixed8': txn['fee_amount_fixed8'],
+                    'fee_asset_name': txn['fee_asset_name'],
+                    'offer_hash': txn['offer_hash'],
+                    'taker_amount': txn['taker_amount'],
+                    'taker_amount_fixed8': txn['taker_amount_fixed8'],
+                    'taker_address': txn[self.address_transaction_dict[txn['switcheo_transaction_type']]],
+                    'transaction_hash': txn['transaction_hash'],
+                    'maker_address': offer_hash['maker_address'],
+                    'maker_offer_amount': offer_hash['offer_amount'],
+                    'maker_offer_amount_fixed8': offer_hash['offer_amount_fixed8'],
+                    'maker_offer_asset_name': offer_hash['offer_asset_name'],
+                    'maker_want_amount': offer_hash['want_amount'],
+                    'maker_want_amount_fixed8': offer_hash['want_amount_fixed8'],
+                    'maker_want_asset_name': offer_hash['want_asset_name']
+                }
+            else:
+                fill = {
+                    'block_date': txn['block_date'],
+                    'block_number': txn['block_number'],
+                    'block_time': txn['block_time'],
+                    'fee_amount': txn['fee_amount'],
+                    'fee_amount_fixed8': txn['fee_amount_fixed8'],
+                    'fee_asset_name': txn['fee_asset_name'],
+                    'offer_hash': txn['offer_hash'],
+                    'taker_amount': txn['taker_amount'],
+                    'taker_amount_fixed8': txn['taker_amount_fixed8'],
+                    'taker_address': txn[self.address_transaction_dict[txn['switcheo_transaction_type']]],
+                    'transaction_hash': txn['transaction_hash']
+                }
+            address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+            print(address)
+            return self.ni.mongo_db['addresses'].update_one(
+                filter={'_id': address},
+                update={
+                    '$addToSet': {
+                        'fills': {
+                            '$each': [fill]
+                        }
+                    }
+                },
+                upsert=True
+            )
+
+    def address_make(self, txn):
+        make = {
+            'block_date': txn['block_date'],
+            'block_number': txn['block_number'],
+            'block_time': txn['block_time'],
+            'offer_hash': txn['offer_hash'],
+            'offer_amount': txn['offer_amount'],
+            'offer_amount_fixed8': txn['offer_amount_fixed8'],
+            'offer_asset_name': txn['offer_asset_name'],
+            'want_amount': txn['want_amount'],
+            'want_amount_fixed8': txn['want_amount_fixed8'],
+            'want_asset_name': txn['want_asset_name'],
+            'transaction_hash': txn['transaction_hash']
+        }
+        address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+        print(address)
+        return self.ni.mongo_db['addresses'].update_one(
+            filter={'_id': address},
+            update={
+                '$addToSet': {
+                    'makes': {
+                        '$each': [make]
+                    }
+                }
+            },
+            upsert=True
+        )
+
+    def address_withdrawal(self, txn):
+        withdraw = {
+            'block_date': txn['block_date'],
+            'block_number': txn['block_number'],
+            'block_time': txn['block_time'],
+            'withdrawals': []
+        }
+        for withdrawal in txn['withdrawals']:
+            withdraw_dict = {
+                'withdraw_address': withdrawal['withdraw_address'],
+                'withdraw_asset_name': withdrawal['withdraw_asset_name'],
+                'withdraw_amount': withdrawal['withdraw_amount']
+            }
+            withdraw['withdrawals'].append(withdraw_dict)
+        address = txn['withdrawals'][0][self.address_transaction_dict[txn['switcheo_transaction_type']]]
+        print(address)
+        return self.ni.mongo_db['addresses'].update_one(
+            filter={'_id': address},
+            update={
+                '$addToSet': {
+                    'withdrawals': {
+                        '$each': [withdraw]
+                    }
+                }
+            },
+            upsert=True
+        )
+
+    def address_fill_stats(self, txns):
+        addresses = {}
+        txn_date = txns[0]['block_date']
+        for txn in txns:
+            address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+            if address not in addresses:
+                addresses[address] = {}
+            if 'fees_paid' not in addresses[address]:
+                addresses[address]['fees_paid'] = {}
+            if 'trade_count' not in addresses[address]:
+                addresses[address]['trade_count'] = {}
+            if 'amount_traded' not in addresses[address]:
+                addresses[address]['amount_traded'] = {}
+            if txn['taker_amount'] is not None:
+                offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
+                if 'want_amount' in offer_hash:
+                    # Fees Paid
+                    if txn['fee_asset_name'] not in addresses[address]['fees_paid']:
+                        addresses[address]['fees_paid'][txn['fee_asset_name']] = txn['fee_amount']
+                    else:
+                        addresses[address]['fees_paid'][txn['fee_asset_name']] += txn['fee_amount']
+                    # Number of Trades (fills)
+                    if offer_hash['want_asset_name'] not in addresses[address]['trade_count']:
+                        addresses[address]['trade_count'][offer_hash['want_asset_name']] = 1
+                    else:
+                        addresses[address]['trade_count'][offer_hash['want_asset_name']] += 1
+                    # Amount of tokens traded (filled)
+                    if offer_hash['want_asset_name'] not in addresses[address]['amount_traded']:
+                        addresses[address]['amount_traded'][offer_hash['want_asset_name']] = txn['taker_amount']
+                    else:
+                        addresses[address]['amount_traded'][offer_hash['want_asset_name']] += txn['taker_amount']
+        for address in addresses.keys():
+            self.ni.mongo_db['address'].update_one(
+                filter={
+                    '$and': [
+                        {
+                            '_id': address,
+                        }
+                    ]
+                },
+                update={
+                    '$set': {
+                        txn_date: addresses[address],
+                    }
+                },
+                upsert=True
+            )
+
     def get_contract_balance(self, address, asset):
         function_name = 'getBalance'
         function_params = [{
@@ -700,11 +1080,12 @@ class SwitcheoSmartContract(object):
             "value": reverse_hex(neo_get_scripthash_from_address(address=address))
         }, {
             "type": "ByteArray",
-            "value": reverse_hex(self.sc.get_token_details[asset])
+            "value": reverse_hex(self.sc.get_token_details()[asset]['hash'])
         }]
         script_test = self.neo_rpc_client.invokefunction(script_hash=self.contract_hash,
                                                          operation=function_name,
                                                          params=function_params)
+        print(reverse_hex('26ae7c6c9861ec418468c1f0fdc4a7f2963eb891'))
         print(script_test)
         print(reverse_hex(script_test['stack'][0]['value']))
         print(int(reverse_hex(script_test['stack'][0]['value']), 16))
