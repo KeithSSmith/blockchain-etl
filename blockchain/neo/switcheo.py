@@ -98,6 +98,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
         self.neo_contract_dict = self.get_neo_contract_dict()
+        self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -232,11 +233,9 @@ class SwitcheoSmartContract(object):
         if 'script' in txn:
             disassemble_dict = {}
             script_disassembler = NeoDisassembler(bytecode=txn['script']).disassemble()
-            for s in script_disassembler:
-                if str(s).split()[0] == "APPCALL":
-                    contract_hash = reverse_hex(str(s).split()[1][2:])
-                    txn['contract_hash'] = contract_hash
-                    txn['contract_hash_version'] = self.neo_contract_dict[contract_hash]
+            disassemble_length = len(script_disassembler)
+            if str(script_disassembler[disassemble_length - 1]).split()[0] in ['APPCALL', 'TAILCALL']:
+                contract_hash = reverse_hex(str(script_disassembler[disassemble_length - 1]).split()[1][2:])
             if contract_hash != '78e6d16b914fe15bc16150aeb11d0c2a8e532bdd':
                 for disassemble in script_disassembler:
                     disassemble_list = str(disassemble).split()
@@ -255,6 +254,8 @@ class SwitcheoSmartContract(object):
                     if disassemble_list[0] == 'PACK':
                         is_pack = True
                 if is_switcheo:
+                    txn['contract_hash'] = contract_hash
+                    txn['contract_hash_version'] = self.neo_contract_dict[contract_hash]
                     return self.deserialize_script[disassemble_dict['function_name']](block, txn, script_disassembler)
 
     def deserialize_add_to_whitelist(self, block, txn, script):
