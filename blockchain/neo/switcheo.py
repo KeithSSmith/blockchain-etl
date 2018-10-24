@@ -98,6 +98,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
         self.neo_contract_dict = self.get_neo_contract_dict()
+        self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
@@ -107,6 +108,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['9577c3f972d769220d69d1c4ddbd617c44d067aa'] = 'GALA'
         self.neo_token_dict['a58b56b30425d3d1f8902034996fcac4168ef71d'] = 'ASA'
         self.neo_token_dict['3a4acd3647086e7c44398aac0349802e6a171129'] = 'NEX'
+        self.neo_token_dict['a4f408df2a1ec2a950ec5fd06d7b9dc5f83b9e73'] = 'SDT'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
@@ -234,8 +236,12 @@ class SwitcheoSmartContract(object):
             disassemble_dict = {}
             script_disassembler = NeoDisassembler(bytecode=txn['script']).disassemble()
             disassemble_length = len(script_disassembler)
-            if str(script_disassembler[disassemble_length - 1]).split()[0] in ['APPCALL', 'TAILCALL']:
+            if str(script_disassembler[disassemble_length - 1]).split()[0] in self.neo_contract_key_list:
                 contract_hash = reverse_hex(str(script_disassembler[disassemble_length - 1]).split()[1][2:])
+            if contract_hash is None:
+                for s in script_disassembler:
+                    if str(s).split()[0] == 'APPCALL':
+                        contract_hash = reverse_hex(str(s).split()[1][2:])
             if contract_hash != '78e6d16b914fe15bc16150aeb11d0c2a8e532bdd':
                 for disassemble in script_disassembler:
                     disassemble_list = str(disassemble).split()
