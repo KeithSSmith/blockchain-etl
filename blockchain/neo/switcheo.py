@@ -756,12 +756,13 @@ class SwitcheoSmartContract(object):
                 switcheo_transaction = self.deserialize_transaction(neo_block, transaction)
                 if switcheo_transaction is not None:
                     self.switcheo_transactions.append(switcheo_transaction)
-                    self.deserialize_offer_hash(txn=switcheo_transaction)
-                    self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
                     if switcheo_transaction['switcheo_transaction_type'] == 'fillOffer':
                         self.switcheo_fees.append(switcheo_transaction)
                     if switcheo_transaction['switcheo_transaction_type'] in ['freezeTrading', 'unfreezeTrading']:
                         self.switcheo_freezes.append(switcheo_transaction)
+                    if switcheo_transaction['switcheo_transaction_type'] in ['fillOffer', 'makeOffer']:
+                        self.deserialize_offer_hash(txn=switcheo_transaction)
+                        self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
                 if len(self.switcheo_transactions) % 500 == 0:
                     self.ni.mongo_upsert_many(collection='transactions', upsert_list_dict=self.switcheo_transactions)
                     self.switcheo_transactions.clear()
