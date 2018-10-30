@@ -34,6 +34,8 @@ class NeoIngest(object):
             elif collection in ['transactions', 'fees', 'freezes']:
                 update_query = {'_id': upsert_dict['transaction_hash']}
                 upsert_dict['_id'] = upsert_dict['transaction_hash']
+            elif '_id' in upsert_dict:
+                update_query = {'_id': upsert_dict['_id']}
             bulk.find(update_query).upsert().replace_one(upsert_dict)
             count += 1
             if count % batch_size == 0:

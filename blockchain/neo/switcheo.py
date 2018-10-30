@@ -2,6 +2,7 @@ import binascii
 import datetime
 import random
 import requests
+import re
 from multiprocessing.dummy import Pool as ThreadPool
 from octopus.platforms.NEO.explorer import NeoExplorerRPC
 from octopus.platforms.NEO.disassembler import NeoDisassembler
@@ -38,6 +39,7 @@ class SwitcheoSmartContract(object):
             'announceWithdraw': self.deserialize_announce_withdraw,
             'approve': self.deserialize_approve,
             'cancelOffer': self.deserialize_cancel,
+            'deploy': self.deserialize_deploy,
             'deposit': self.deserialize_deposit,
             'fillOffer': self.deserialize_fill_offer,
             'freezeTrading': self.deserialize_freeze_trading,
@@ -72,7 +74,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'withdrawAssets').decode('utf-8')): 'withdrawAssets',
             str(binascii.hexlify(b'freezeTrading').decode('utf-8')): 'freezeTrading',
             str(binascii.hexlify(b'unfreezeTrading').decode('utf-8')): 'unfreezeTrading',
-            str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist'
+            str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist',
+            str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -97,6 +100,7 @@ class SwitcheoSmartContract(object):
                             hostname=mongodb_hostname, port=mongodb_port, database=mongodb_db)
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
+        self.neo_contract_list.append('ab38352559b8b203bde5fddfa0b07d8b2525e132')
         self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
@@ -314,6 +318,9 @@ class SwitcheoSmartContract(object):
         }
         return cancel_dict
 
+    def deserialize_deploy(self, block, txn, script):
+        pass
+
     def deserialize_deposit(self, block, txn, script):
         contract_hash = None
         for s in script:
@@ -354,13 +361,14 @@ class SwitcheoSmartContract(object):
             'deposit_address': neo_get_address_from_scripthash(scripthash=reverse_hex(script[2])),
             'deposits': []
         }
-        out_dict = {}
         for transfer in txn['vout']:
-            out_dict['deposit_address'] = transfer['address']
-            out_dict['deposit_asset'] = transfer['asset']
-            out_dict['deposit_asset_name'] = self.neo_token_dict[transfer['asset'][2:]]
-            out_dict['deposit_amount'] = transfer['value']
-        deposit_dict['deposits'].append(out_dict)
+            out_dict = {
+                'deposit_address': transfer['address'],
+                'deposit_asset': transfer['asset'],
+                'deposit_asset_name': self.neo_token_dict[transfer['asset'][2:]],
+                'deposit_amount': transfer['value']
+            }
+            deposit_dict['deposits'].append(out_dict)
         return deposit_dict
 
     def deserialize_fill_offer(self, block, txn, script):
@@ -662,14 +670,31 @@ class SwitcheoSmartContract(object):
                 'contract_hash': contract_hash
             }
         else:
-            if len(str(script[0]).split()) == 1:
-                transfer_amount_original = str(script[0]).split()[0]
-                transfer_amount = transfer_amount_original[4:]
+            transfer_index = 0
+            if str(script[1]).split()[0] == 'DROP':
+                transfer_index = 2
+            if len(str(script[transfer_index]).split()) == 1:
+                transfer_amount_original = str(script[transfer_index]).split()[0]
+                transfer_amount = int(transfer_amount_original[4:])
+                transfer_amount_fixed8 = transfer_amount
+            elif transfer_index == 0 and str(script[transfer_index]).split()[0][9:] != '8':
+                pad_length = int(str(script[transfer_index]).split()[0][9:]) * 2
+                transfer_hex_pad = self.zero_pad_if_odd_length_string(str(script[transfer_index]).split()[1][2:], output_size=pad_length)
+                transfer_amount_original = self.zero_pad_if_odd_length_string(reverse_hex(transfer_hex_pad), output_size=16)
+                transfer_amount = int(transfer_amount_original, 16)
+                transfer_amount_fixed8 = SwitcheoFixed8(transfer_amount).ToString()
+            elif transfer_index == 2 and str(script[transfer_index]).split()[0][9:] != '8':
+                pad_length = int(str(script[transfer_index]).split()[0][9:]) * 2
+                transfer_hex_pad = self.zero_pad_if_odd_length_string(str(script[transfer_index]).split()[1][2:], output_size=pad_length)
+                transfer_amount_original = self.zero_pad_if_odd_length_string(reverse_hex(transfer_hex_pad), output_size=16)
+                transfer_amount = int(transfer_amount_original, 16)
+                transfer_amount_fixed8 = SwitcheoFixed8(transfer_amount).ToString()
             else:
-                transfer_amount_original = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:]).rjust(16, '0')
-                transfer_amount = reverse_hex(transfer_amount_original)
-            script[1] = self.zero_pad_if_odd_length_string(str(script[1]).split()[1][2:]).rjust(40, '0')
-            script[2] = self.zero_pad_if_odd_length_string(str(script[2]).split()[1][2:]).rjust(40, '0')
+                transfer_amount_original = self.zero_pad_if_odd_length_string(str(script[transfer_index]).split()[1][2:], output_size=16)
+                transfer_amount = int(reverse_hex(transfer_amount_original), 16)
+                transfer_amount_fixed8 = SwitcheoFixed8(transfer_amount).ToString()
+            to_address_original = self.zero_pad_if_odd_length_string(str(script[transfer_index + 1]).split()[1][2:], output_size=40)
+            from_address_original = self.zero_pad_if_odd_length_string(str(script[transfer_index + 2]).split()[1][2:], output_size=40)
             transfer_dict = {
                 'block_hash': block['hash'][2:],
                 'block_number': block['index'],
@@ -683,10 +708,11 @@ class SwitcheoSmartContract(object):
                 'switcheo_transaction_type': 'transfer',
                 'transfer_amount_original': transfer_amount_original,
                 'transfer_amount': transfer_amount,
-                'to_address_original': script[1],
-                'to_address': neo_get_address_from_scripthash(scripthash=reverse_hex(script[1])),
-                'from_address_original': script[2],
-                'from_address': neo_get_address_from_scripthash(scripthash=reverse_hex(script[2]))
+                'transfer_amount_fixed8': transfer_amount_fixed8,
+                'to_address_original': to_address_original,
+                'to_address': neo_get_address_from_scripthash(scripthash=reverse_hex(to_address_original)),
+                'from_address_original': from_address_original,
+                'from_address': neo_get_address_from_scripthash(scripthash=reverse_hex(from_address_original))
             }
         return transfer_dict
 
@@ -721,13 +747,14 @@ class SwitcheoSmartContract(object):
             'switcheo_transaction_type': 'withdrawal',
             'withdrawals': []
         }
-        withdrawal_dict = {}
         for transfer in txn['vout']:
-            withdrawal_dict['withdraw_address'] = transfer['address']
-            withdrawal_dict['withdraw_asset'] = transfer['asset']
-            withdrawal_dict['withdraw_asset_name'] = self.neo_token_dict[transfer['asset'][2:]]
-            withdrawal_dict['withdraw_amount'] = transfer['value']
-        withdraw_dict['withdrawals'].append(withdrawal_dict)
+            withdrawal_dict = {
+                'withdraw_address': transfer['address'],
+                'withdraw_asset': transfer['asset'],
+                'withdraw_asset_name': self.neo_token_dict[transfer['asset'][2:]],
+                'withdraw_amount': transfer['value']
+            }
+            withdraw_dict['withdrawals'].append(withdrawal_dict)
         return withdraw_dict
 
     def deserialize_withdraw_assets(self, block, txn, script):
@@ -752,6 +779,7 @@ class SwitcheoSmartContract(object):
 
     def ingest_switcheo_transactions(self, neo_blocks):
         for neo_block in neo_blocks:
+            print(neo_block['index'])
             for transaction in neo_block['tx']:
                 switcheo_transaction = self.deserialize_transaction(neo_block, transaction)
                 if switcheo_transaction is not None:
@@ -760,8 +788,9 @@ class SwitcheoSmartContract(object):
                         self.switcheo_fees.append(switcheo_transaction)
                     if switcheo_transaction['switcheo_transaction_type'] in ['freezeTrading', 'unfreezeTrading']:
                         self.switcheo_freezes.append(switcheo_transaction)
-                    if switcheo_transaction['switcheo_transaction_type'] in ['fillOffer', 'makeOffer']:
+                    if switcheo_transaction['switcheo_transaction_type'] in ['cancel', 'fillOffer', 'makeOffer']:
                         self.deserialize_offer_hash(txn=switcheo_transaction)
+                    if switcheo_transaction['switcheo_transaction_type'] in ['deposit', 'fillOffer', 'makeOffer', 'transfer']:
                         self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
                 if len(self.switcheo_transactions) % 500 == 0:
                     self.ni.mongo_upsert_many(collection='transactions', upsert_list_dict=self.switcheo_transactions)
@@ -1062,6 +1091,7 @@ class SwitcheoSmartContract(object):
 
     def address_stats(self, txns, txn_date):
         addresses = {}
+        address_transactions = []
         for txn in txns:
             if txn['switcheo_transaction_type'] == 'fillOffer' and txn['fee_amount_original'] != 'PUSH0':
                 offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
@@ -1104,9 +1134,9 @@ class SwitcheoSmartContract(object):
                 if 'total_amount_traded' not in addresses[taker_address_date]:
                     addresses[taker_address_date]['total_amount_traded'] = {}
                 if 'asset_balance' not in addresses[taker_address]:
-                    addresses[taker_address]['asset_balance'] = {}
+                    addresses[taker_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
                 if 'asset_balance' not in addresses[taker_address_date]:
-                    addresses[taker_address_date]['asset_balance'] = {}
+                    addresses[taker_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
                 if 'trade_type_count' not in addresses[taker_address]:
                     addresses[taker_address]['trade_type_count'] = {}
                 if 'trade_type_count' not in addresses[taker_address_date]:
@@ -1119,51 +1149,96 @@ class SwitcheoSmartContract(object):
                     addresses[taker_address]['takes'] = {}
                 if 'takes' not in addresses[taker_address_date]:
                     addresses[taker_address_date]['takes'] = {}
+
+                if addresses[maker_address] is None:
+                    addresses[maker_address] = {}
+                if addresses[maker_address_date] is None:
+                    addresses[maker_address_date] = {}
+                if 'fees_paid' not in addresses[maker_address]:
+                    addresses[maker_address]['fees_paid'] = {}
+                if 'fees_paid' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['fees_paid'] = {}
+                if 'trade_count' not in addresses[maker_address]:
+                    addresses[maker_address]['trade_count'] = {}
+                if 'trade_count' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['trade_count'] = {}
+                if 'amount_traded' not in addresses[maker_address]:
+                    addresses[maker_address]['amount_traded'] = {}
+                if 'amount_traded' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[maker_address]:
+                    addresses[maker_address]['total_amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['total_amount_traded'] = {}
+                if 'asset_balance' not in addresses[maker_address]:
+                    addresses[maker_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'asset_balance' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'trade_type_count' not in addresses[maker_address]:
+                    addresses[maker_address]['trade_type_count'] = {}
+                if 'trade_type_count' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['trade_type_count'] = {}
+                if 'makes' not in addresses[maker_address]:
+                    addresses[maker_address]['makes'] = {}
+                if 'makes' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['makes'] = {}
+                if 'takes' not in addresses[maker_address]:
+                    addresses[maker_address]['takes'] = {}
+                if 'takes' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['takes'] = {}
+
             elif txn['switcheo_transaction_type'] == 'makeOffer':
                 maker_address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
                 addresses[maker_address] = self.ni.mongo_db['addresses'].find_one({'_id': maker_address})
                 maker_address_date = (maker_address, txn_date)
                 maker_address_date_dict = {'address': maker_address, 'date': txn_date}
                 addresses[maker_address_date] = self.ni.mongo_db['addresses_date'].find_one({'_id': maker_address_date_dict})
-            if addresses[maker_address] is None:
-                addresses[maker_address] = {}
-            if addresses[maker_address_date] is None:
-                addresses[maker_address_date] = {}
-            if 'fees_paid' not in addresses[maker_address]:
-                addresses[maker_address]['fees_paid'] = {}
-            if 'fees_paid' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['fees_paid'] = {}
-            if 'trade_count' not in addresses[maker_address]:
-                addresses[maker_address]['trade_count'] = {}
-            if 'trade_count' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['trade_count'] = {}
-            if 'amount_traded' not in addresses[maker_address]:
-                addresses[maker_address]['amount_traded'] = {}
-            if 'amount_traded' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['amount_traded'] = {}
-            if 'total_amount_traded' not in addresses[maker_address]:
-                addresses[maker_address]['total_amount_traded'] = {}
-            if 'total_amount_traded' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['total_amount_traded'] = {}
-            if 'asset_balance' not in addresses[maker_address]:
-                addresses[maker_address]['asset_balance'] = {}
-            if 'asset_balance' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['asset_balance'] = {}
-            if 'trade_type_count' not in addresses[maker_address]:
-                addresses[maker_address]['trade_type_count'] = {}
-            if 'trade_type_count' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['trade_type_count'] = {}
-            if 'makes' not in addresses[maker_address]:
-                addresses[maker_address]['makes'] = {}
-            if 'makes' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['makes'] = {}
-            if 'takes' not in addresses[maker_address]:
-                addresses[maker_address]['takes'] = {}
-            if 'takes' not in addresses[maker_address_date]:
-                addresses[maker_address_date]['takes'] = {}
+                trade_pair = txn['offer_asset_name'] + "_" + txn['want_asset_name']
+                if trade_pair not in self.neo_trade_pair_list:
+                    trade_pair = txn['want_asset_name'] + "_" + txn['offer_asset_name']
+                    if trade_pair not in self.neo_trade_pair_list:
+                        exit("Incorrect trade pair - " + trade_pair)
+                if addresses[maker_address] is None:
+                    addresses[maker_address] = {}
+                if addresses[maker_address_date] is None:
+                    addresses[maker_address_date] = {}
+                if 'fees_paid' not in addresses[maker_address]:
+                    addresses[maker_address]['fees_paid'] = {}
+                if 'fees_paid' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['fees_paid'] = {}
+                if 'trade_count' not in addresses[maker_address]:
+                    addresses[maker_address]['trade_count'] = {}
+                if 'trade_count' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['trade_count'] = {}
+                if 'amount_traded' not in addresses[maker_address]:
+                    addresses[maker_address]['amount_traded'] = {}
+                if 'amount_traded' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[maker_address]:
+                    addresses[maker_address]['total_amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['total_amount_traded'] = {}
+                if 'asset_balance' not in addresses[maker_address]:
+                    addresses[maker_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'asset_balance' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'trade_type_count' not in addresses[maker_address]:
+                    addresses[maker_address]['trade_type_count'] = {}
+                if 'trade_type_count' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['trade_type_count'] = {}
+                if 'makes' not in addresses[maker_address]:
+                    addresses[maker_address]['makes'] = {}
+                if 'makes' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['makes'] = {}
+                if 'takes' not in addresses[maker_address]:
+                    addresses[maker_address]['takes'] = {}
+                if 'takes' not in addresses[maker_address_date]:
+                    addresses[maker_address_date]['takes'] = {}
 
             if txn['switcheo_transaction_type'] == 'fillOffer':
                 if txn['taker_amount'] is not None:
+                    if txn['fee_amount_original'] == 'PUSH0':
+                        offer_hash = []
                     if 'want_amount' in offer_hash:
                         offer_ratio = round(offer_hash['want_amount'] / offer_hash['offer_amount'], 8)
                         # Taker Fees Paid
@@ -1253,53 +1328,98 @@ class SwitcheoSmartContract(object):
                             addresses[maker_address_date]['total_amount_traded'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
 
                         # Increment Balance of Taker Account
-                        if offer_hash['offer_asset_name'] not in addresses[taker_address]['asset_balance']:
-                            addresses[taker_address]['asset_balance'][offer_hash['offer_asset_name']] = txn['taker_amount']
+                        if offer_hash['offer_asset_name'] not in addresses[taker_address]['asset_balance']['smart_contract']:
+                            addresses[taker_address]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] = txn['taker_amount']
                         else:
-                            addresses[taker_address]['asset_balance'][offer_hash['offer_asset_name']] += txn['taker_amount']
-                        if offer_hash['offer_asset_name'] not in addresses[taker_address_date]['asset_balance']:
-                            addresses[taker_address_date]['asset_balance'][offer_hash['offer_asset_name']] = txn['taker_amount']
+                            addresses[taker_address]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] += txn['taker_amount']
+                        if offer_hash['offer_asset_name'] not in addresses[taker_address_date]['asset_balance']['smart_contract']:
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] = txn['taker_amount']
                         else:
-                            addresses[taker_address_date]['asset_balance'][offer_hash['offer_asset_name']] += txn['taker_amount']
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] += txn['taker_amount']
+
+                        if offer_hash['offer_asset_name'] not in addresses[taker_address]['asset_balance']['total']:
+                            addresses[taker_address]['asset_balance']['total'][offer_hash['offer_asset_name']] = txn['taker_amount']
+                        else:
+                            addresses[taker_address]['asset_balance']['total'][offer_hash['offer_asset_name']] += txn['taker_amount']
+                        if offer_hash['offer_asset_name'] not in addresses[taker_address_date]['asset_balance']['total']:
+                            addresses[taker_address_date]['asset_balance']['total'][offer_hash['offer_asset_name']] = txn['taker_amount']
+                        else:
+                            addresses[taker_address_date]['asset_balance']['total'][offer_hash['offer_asset_name']] += txn['taker_amount']
 
                         # Decrement Balance of Taker Account
-                        if offer_hash['want_asset_name'] not in addresses[taker_address]['asset_balance']:
-                            addresses[taker_address]['asset_balance'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
+                        if offer_hash['want_asset_name'] not in addresses[taker_address]['asset_balance']['smart_contract']:
+                            addresses[taker_address]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
                         else:
-                            addresses[taker_address]['asset_balance'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
-                        if offer_hash['want_asset_name'] not in addresses[taker_address_date]['asset_balance']:
-                            addresses[taker_address_date]['asset_balance'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
+                            addresses[taker_address]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
+                        if offer_hash['want_asset_name'] not in addresses[taker_address_date]['asset_balance']['smart_contract']:
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
                         else:
-                            addresses[taker_address_date]['asset_balance'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
 
-                        if txn['fee_asset_name'] not in addresses[taker_address]['asset_balance']:
-                            addresses[taker_address]['asset_balance'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                        if offer_hash['want_asset_name'] not in addresses[taker_address]['asset_balance']['total']:
+                            addresses[taker_address]['asset_balance']['total'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
                         else:
-                            addresses[taker_address]['asset_balance'][txn['fee_asset_name']] -= txn['fee_amount']
-                        if txn['fee_asset_name'] not in addresses[taker_address_date]['asset_balance']:
-                            addresses[taker_address_date]['asset_balance'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                            addresses[taker_address]['asset_balance']['total'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
+                        if offer_hash['want_asset_name'] not in addresses[taker_address_date]['asset_balance']['total']:
+                            addresses[taker_address_date]['asset_balance']['total'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio * -1)
                         else:
-                            addresses[taker_address_date]['asset_balance'][txn['fee_asset_name']] -= txn['fee_amount']
+                            addresses[taker_address_date]['asset_balance']['total'][offer_hash['want_asset_name']] -= int(txn['taker_amount'] * offer_ratio)
+
+                        if txn['fee_asset_name'] not in addresses[taker_address]['asset_balance']['smart_contract']:
+                            addresses[taker_address]['asset_balance']['smart_contract'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                        else:
+                            addresses[taker_address]['asset_balance']['smart_contract'][txn['fee_asset_name']] -= txn['fee_amount']
+                        if txn['fee_asset_name'] not in addresses[taker_address_date]['asset_balance']['smart_contract']:
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                        else:
+                            addresses[taker_address_date]['asset_balance']['smart_contract'][txn['fee_asset_name']] -= txn['fee_amount']
+
+                        if txn['fee_asset_name'] not in addresses[taker_address]['asset_balance']['total']:
+                            addresses[taker_address]['asset_balance']['total'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                        else:
+                            addresses[taker_address]['asset_balance']['total'][txn['fee_asset_name']] -= txn['fee_amount']
+                        if txn['fee_asset_name'] not in addresses[taker_address_date]['asset_balance']['total']:
+                            addresses[taker_address_date]['asset_balance']['total'][txn['fee_asset_name']] = int(txn['fee_amount'] * -1)
+                        else:
+                            addresses[taker_address_date]['asset_balance']['total'][txn['fee_asset_name']] -= txn['fee_amount']
 
                         # Increment Balance of Maker Account
-                        if offer_hash['want_asset_name'] not in addresses[maker_address]['asset_balance']:
-                            addresses[maker_address]['asset_balance'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
+                        if offer_hash['want_asset_name'] not in addresses[maker_address]['asset_balance']['smart_contract']:
+                            addresses[maker_address]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
                         else:
-                            addresses[maker_address]['asset_balance'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
-                        if offer_hash['want_asset_name'] not in addresses[maker_address_date]['asset_balance']:
-                            addresses[maker_address_date]['asset_balance'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
+                            addresses[maker_address]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
+                        if offer_hash['want_asset_name'] not in addresses[maker_address_date]['asset_balance']['smart_contract']:
+                            addresses[maker_address_date]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
                         else:
-                            addresses[maker_address_date]['asset_balance'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
+                            addresses[maker_address_date]['asset_balance']['smart_contract'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
+
+                        if offer_hash['want_asset_name'] not in addresses[maker_address]['asset_balance']['total']:
+                            addresses[maker_address]['asset_balance']['total'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
+                        else:
+                            addresses[maker_address]['asset_balance']['total'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
+                        if offer_hash['want_asset_name'] not in addresses[maker_address_date]['asset_balance']['total']:
+                            addresses[maker_address_date]['asset_balance']['total'][offer_hash['want_asset_name']] = int(txn['taker_amount'] * offer_ratio)
+                        else:
+                            addresses[maker_address_date]['asset_balance']['total'][offer_hash['want_asset_name']] += int(txn['taker_amount'] * offer_ratio)
 
                         # Decrement Balance of Maker Account
-                        if offer_hash['offer_asset_name'] not in addresses[maker_address]['asset_balance']:
-                            addresses[maker_address]['asset_balance'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
+                        if offer_hash['offer_asset_name'] not in addresses[maker_address]['asset_balance']['smart_contract']:
+                            addresses[maker_address]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
                         else:
-                            addresses[maker_address]['asset_balance'][offer_hash['offer_asset_name']] -= txn['taker_amount']
-                        if offer_hash['offer_asset_name'] not in addresses[maker_address_date]['asset_balance']:
-                            addresses[maker_address_date]['asset_balance'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
+                            addresses[maker_address]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] -= txn['taker_amount']
+                        if offer_hash['offer_asset_name'] not in addresses[maker_address_date]['asset_balance']['smart_contract']:
+                            addresses[maker_address_date]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
                         else:
-                            addresses[maker_address_date]['asset_balance'][offer_hash['offer_asset_name']] -= txn['taker_amount']
+                            addresses[maker_address_date]['asset_balance']['smart_contract'][offer_hash['offer_asset_name']] -= txn['taker_amount']
+
+                        if offer_hash['offer_asset_name'] not in addresses[maker_address]['asset_balance']['total']:
+                            addresses[maker_address]['asset_balance']['total'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
+                        else:
+                            addresses[maker_address]['asset_balance']['total'][offer_hash['offer_asset_name']] -= txn['taker_amount']
+                        if offer_hash['offer_asset_name'] not in addresses[maker_address_date]['asset_balance']['total']:
+                            addresses[maker_address_date]['asset_balance']['total'][offer_hash['offer_asset_name']] = int(txn['taker_amount'] * -1)
+                        else:
+                            addresses[maker_address_date]['asset_balance']['total'][offer_hash['offer_asset_name']] -= txn['taker_amount']
 
                         # Increment taker trade count for Taker Account
                         if 'taker' not in addresses[taker_address]['trade_type_count']:
@@ -1346,6 +1466,55 @@ class SwitcheoSmartContract(object):
                             addresses[taker_address_date]['takes']['offers'][offer_hash['offer_asset_name']] = 1
                         else:
                             addresses[taker_address_date]['takes']['offers'][offer_hash['offer_asset_name']] += 1
+
+                        # Rich List Transaction Log
+                        maker_want_rich_list_dict = {
+                            '_id': maker_address + "_" + txn['transaction_hash'] + "_maker_want",
+                            'block_number': txn['block_number'],
+                            'block_date': txn['block_date'],
+                            'transaction_type': txn['switcheo_transaction_type'],
+                            'asset': offer_hash['want_asset_name'],
+                            'amount': int(txn['taker_amount'] * offer_ratio),
+                            'smart_contract': int(txn['taker_amount'] * offer_ratio),
+                            'total': int(txn['taker_amount'] * offer_ratio)
+                        }
+                        address_transactions.append(maker_want_rich_list_dict)
+
+                        maker_offer_rich_list_dict = {
+                            '_id': maker_address + "_" + txn['transaction_hash'] + "_maker_offer",
+                            'block_number': txn['block_number'],
+                            'block_date': txn['block_date'],
+                            'transaction_type': txn['switcheo_transaction_type'],
+                            'asset': offer_hash['offer_asset_name'],
+                            'amount': txn['taker_amount'],
+                            'smart_contract': int(txn['taker_amount'] * -1),
+                            'total': int(txn['taker_amount'] * -1)
+                        }
+                        address_transactions.append(maker_offer_rich_list_dict)
+
+                        taker_want_rich_list_dict = {
+                            '_id': taker_address + "_" + txn['transaction_hash'] + "_taker_want",
+                            'block_number': txn['block_number'],
+                            'block_date': txn['block_date'],
+                            'transaction_type': txn['switcheo_transaction_type'],
+                            'asset': offer_hash['want_asset_name'],
+                            'amount': int(txn['taker_amount'] * offer_ratio),
+                            'smart_contract': int(txn['taker_amount'] * offer_ratio * -1),
+                            'total': int(txn['taker_amount'] * offer_ratio * -1)
+                        }
+                        address_transactions.append(taker_want_rich_list_dict)
+
+                        taker_offer_rich_list_dict = {
+                            '_id': taker_address + "_" + txn['transaction_hash'] + "_taker_offer",
+                            'block_number': txn['block_number'],
+                            'block_date': txn['block_date'],
+                            'transaction_type': txn['switcheo_transaction_type'],
+                            'asset': offer_hash['offer_asset_name'],
+                            'amount': txn['taker_amount'],
+                            'smart_contract': txn['taker_amount'],
+                            'total': txn['taker_amount']
+                        }
+                        address_transactions.append(taker_offer_rich_list_dict)
 
             elif txn['switcheo_transaction_type'] == 'makeOffer':
                 # Increment maker trade count for Maker Account
@@ -1394,6 +1563,237 @@ class SwitcheoSmartContract(object):
                 else:
                     addresses[maker_address_date]['makes']['offers'][txn['offer_asset_name']] += 1
 
+            elif txn['switcheo_transaction_type'] == 'deposit':
+                deposit_address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
+                addresses[deposit_address] = self.ni.mongo_db['addresses'].find_one({'_id': deposit_address})
+                deposit_address_date = (deposit_address, txn_date)
+                deposit_address_date_dict = {'address': deposit_address, 'date': txn_date}
+                addresses[deposit_address_date] = self.ni.mongo_db['addresses_date'].find_one({'_id': deposit_address_date_dict})
+
+                if addresses[deposit_address] is None:
+                    addresses[deposit_address] = {}
+                if addresses[deposit_address_date] is None:
+                    addresses[deposit_address_date] = {}
+                if 'asset_balance' not in addresses[deposit_address]:
+                    addresses[deposit_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'asset_balance' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'fees_paid' not in addresses[deposit_address]:
+                    addresses[deposit_address]['fees_paid'] = {}
+                if 'fees_paid' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['fees_paid'] = {}
+                if 'trade_count' not in addresses[deposit_address]:
+                    addresses[deposit_address]['trade_count'] = {}
+                if 'trade_count' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['trade_count'] = {}
+                if 'amount_traded' not in addresses[deposit_address]:
+                    addresses[deposit_address]['amount_traded'] = {}
+                if 'amount_traded' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[deposit_address]:
+                    addresses[deposit_address]['total_amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['total_amount_traded'] = {}
+                if 'trade_type_count' not in addresses[deposit_address]:
+                    addresses[deposit_address]['trade_type_count'] = {}
+                if 'trade_type_count' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['trade_type_count'] = {}
+                if 'makes' not in addresses[deposit_address]:
+                    addresses[deposit_address]['makes'] = {}
+                if 'makes' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['makes'] = {}
+                if 'takes' not in addresses[deposit_address]:
+                    addresses[deposit_address]['takes'] = {}
+                if 'takes' not in addresses[deposit_address_date]:
+                    addresses[deposit_address_date]['takes'] = {}
+
+                # Increment Smart Contract balance of Address
+                if txn['deposit_asset_name'] not in addresses[deposit_address]['asset_balance']['smart_contract']:
+                    addresses[deposit_address]['asset_balance']['smart_contract'][txn['deposit_asset_name']] = txn['deposit_amount']
+                else:
+                    addresses[deposit_address]['asset_balance']['smart_contract'][txn['deposit_asset_name']] += txn['deposit_amount']
+                if txn['deposit_asset_name'] not in addresses[deposit_address_date]['asset_balance']['smart_contract']:
+                    addresses[deposit_address_date]['asset_balance']['smart_contract'][txn['deposit_asset_name']] = txn['deposit_amount']
+                else:
+                    addresses[deposit_address_date]['asset_balance']['smart_contract'][txn['deposit_asset_name']] += txn['deposit_amount']
+
+                # Decrement On Chain balance of Address
+                if txn['deposit_asset_name'] not in addresses[deposit_address]['asset_balance']['on_chain']:
+                    addresses[deposit_address]['asset_balance']['on_chain'][txn['deposit_asset_name']] = int(txn['deposit_amount'] * -1)
+                else:
+                    addresses[deposit_address]['asset_balance']['on_chain'][txn['deposit_asset_name']] -= txn['deposit_amount']
+                if txn['deposit_asset_name'] not in addresses[deposit_address_date]['asset_balance']['on_chain']:
+                    addresses[deposit_address_date]['asset_balance']['on_chain'][txn['deposit_asset_name']] = int(txn['deposit_amount'] * -1)
+                else:
+                    addresses[deposit_address_date]['asset_balance']['on_chain'][txn['deposit_asset_name']] -= txn['deposit_amount']
+
+                # Rich List Transaction Log
+                deposit_rich_list_dict = {
+                    '_id': deposit_address + "_" + txn['transaction_hash'] + "_deposit",
+                    'block_number': txn['block_number'],
+                    'block_date': txn['block_date'],
+                    'transaction_type': txn['switcheo_transaction_type'],
+                    'asset': txn['deposit_asset_name'],
+                    'amount': txn['deposit_amount'],
+                    'on_chain': int(txn['deposit_amount'] * -1),
+                    'smart_contract': txn['deposit_amount']
+                }
+                address_transactions.append(deposit_rich_list_dict)
+
+            elif txn['switcheo_transaction_type'] == 'transfer' and txn['contract_hash_version'] == 'SWTH':
+                transfer_to_address = txn['to_address']
+                transfer_from_address = txn['from_address']
+
+                addresses[transfer_to_address] = self.ni.mongo_db['addresses'].find_one({'_id': transfer_to_address})
+                transfer_to_address_date = (transfer_to_address, txn_date)
+                transfer_to_address_date_dict = {'address': transfer_to_address, 'date': txn_date}
+                addresses[transfer_to_address_date] = self.ni.mongo_db['addresses_date'].find_one({'_id': transfer_to_address_date_dict})
+
+                if addresses[transfer_to_address] is None:
+                    addresses[transfer_to_address] = {}
+                if addresses[transfer_to_address_date] is None:
+                    addresses[transfer_to_address_date] = {}
+                if 'asset_balance' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'asset_balance' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'fees_paid' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['fees_paid'] = {}
+                if 'fees_paid' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['fees_paid'] = {}
+                if 'trade_count' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['trade_count'] = {}
+                if 'trade_count' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['trade_count'] = {}
+                if 'amount_traded' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['amount_traded'] = {}
+                if 'amount_traded' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['total_amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['total_amount_traded'] = {}
+                if 'trade_type_count' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['trade_type_count'] = {}
+                if 'trade_type_count' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['trade_type_count'] = {}
+                if 'makes' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['makes'] = {}
+                if 'makes' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['makes'] = {}
+                if 'takes' not in addresses[transfer_to_address]:
+                    addresses[transfer_to_address]['takes'] = {}
+                if 'takes' not in addresses[transfer_to_address_date]:
+                    addresses[transfer_to_address_date]['takes'] = {}
+
+                addresses[transfer_from_address] = self.ni.mongo_db['addresses'].find_one({'_id': transfer_from_address})
+                transfer_from_address_date = (transfer_from_address, txn_date)
+                transfer_from_address_date_dict = {'address': transfer_from_address, 'date': txn_date}
+                addresses[transfer_from_address_date] = self.ni.mongo_db['addresses_date'].find_one({'_id': transfer_from_address_date_dict})
+
+                if addresses[transfer_from_address] is None:
+                    addresses[transfer_from_address] = {}
+                if addresses[transfer_from_address_date] is None:
+                    addresses[transfer_from_address_date] = {}
+                if 'asset_balance' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'asset_balance' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['asset_balance'] = {'on_chain': {}, 'smart_contract': {}, 'total': {}}
+                if 'fees_paid' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['fees_paid'] = {}
+                if 'fees_paid' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['fees_paid'] = {}
+                if 'trade_count' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['trade_count'] = {}
+                if 'trade_count' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['trade_count'] = {}
+                if 'amount_traded' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['amount_traded'] = {}
+                if 'amount_traded' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['total_amount_traded'] = {}
+                if 'total_amount_traded' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['total_amount_traded'] = {}
+                if 'trade_type_count' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['trade_type_count'] = {}
+                if 'trade_type_count' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['trade_type_count'] = {}
+                if 'makes' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['makes'] = {}
+                if 'makes' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['makes'] = {}
+                if 'takes' not in addresses[transfer_from_address]:
+                    addresses[transfer_from_address]['takes'] = {}
+                if 'takes' not in addresses[transfer_from_address_date]:
+                    addresses[transfer_from_address_date]['takes'] = {}
+
+                # Increment Total balance of to Address
+                if 'SWTH' not in addresses[transfer_to_address]['asset_balance']['total']:
+                    addresses[transfer_to_address]['asset_balance']['total']['SWTH'] = txn['transfer_amount']
+                else:
+                    addresses[transfer_to_address]['asset_balance']['total']['SWTH'] += txn['transfer_amount']
+                if 'SWTH' not in addresses[transfer_to_address_date]['asset_balance']['total']:
+                    addresses[transfer_to_address_date]['asset_balance']['total']['SWTH'] = txn['transfer_amount']
+                else:
+                    addresses[transfer_to_address_date]['asset_balance']['total']['SWTH'] += txn['transfer_amount']
+
+                # Increment On Chain balance of to Address
+                if 'SWTH' not in addresses[transfer_to_address]['asset_balance']['on_chain']:
+                    addresses[transfer_to_address]['asset_balance']['on_chain']['SWTH'] = txn['transfer_amount']
+                else:
+                    addresses[transfer_to_address]['asset_balance']['on_chain']['SWTH'] += txn['transfer_amount']
+                if 'SWTH' not in addresses[transfer_to_address_date]['asset_balance']['on_chain']:
+                    addresses[transfer_to_address_date]['asset_balance']['on_chain']['SWTH'] = txn['transfer_amount']
+                else:
+                    addresses[transfer_to_address_date]['asset_balance']['on_chain']['SWTH'] += txn['transfer_amount']
+
+                # Decrement Total balance of from Address
+                if 'SWTH' not in addresses[transfer_from_address]['asset_balance']['total']:
+                    addresses[transfer_from_address]['asset_balance']['total']['SWTH'] = int(txn['transfer_amount'] * -1)
+                else:
+                    addresses[transfer_from_address]['asset_balance']['total']['SWTH'] -= txn['transfer_amount']
+                if 'SWTH' not in addresses[transfer_from_address_date]['asset_balance']['total']:
+                    addresses[transfer_from_address_date]['asset_balance']['total']['SWTH'] = int(txn['transfer_amount'] * -1)
+                else:
+                    addresses[transfer_from_address_date]['asset_balance']['total']['SWTH'] -= txn['transfer_amount']
+
+                # Decrement On Chain balance of from Address
+                if 'SWTH' not in addresses[transfer_from_address]['asset_balance']['on_chain']:
+                    addresses[transfer_from_address]['asset_balance']['on_chain']['SWTH'] = int(txn['transfer_amount'] * -1)
+                else:
+                    addresses[transfer_from_address]['asset_balance']['on_chain']['SWTH'] -= txn['transfer_amount']
+                if 'SWTH' not in addresses[transfer_from_address_date]['asset_balance']['on_chain']:
+                    addresses[transfer_from_address_date]['asset_balance']['on_chain']['SWTH'] = int(txn['transfer_amount'] * -1)
+                else:
+                    addresses[transfer_from_address_date]['asset_balance']['on_chain']['SWTH'] -= txn['transfer_amount']
+
+                # Rich List Transaction Log
+                transfer_to_rich_list_dict = {
+                    '_id': transfer_to_address + "_" + txn['transaction_hash'] + "_transfer_to",
+                    'block_number': txn['block_number'],
+                    'block_date': txn['block_date'],
+                    'transaction_type': txn['switcheo_transaction_type'],
+                    'asset': 'SWTH',
+                    'amount': txn['transfer_amount'],
+                    'on_chain': txn['transfer_amount'],
+                    'total': txn['transfer_amount']
+                }
+                address_transactions.append(transfer_to_rich_list_dict)
+
+                transfer_from_rich_list_dict = {
+                    '_id': transfer_from_address + "_" + txn['transaction_hash'] + "_transfer_from",
+                    'block_number': txn['block_number'],
+                    'block_date': txn['block_date'],
+                    'transaction_type': txn['switcheo_transaction_type'],
+                    'asset': 'SWTH',
+                    'amount': txn['transfer_amount'],
+                    'on_chain': int(txn['transfer_amount'] * -1),
+                    'total': int(txn['transfer_amount'] * -1)
+                }
+                address_transactions.append(transfer_from_rich_list_dict)
+
+        self.ni.mongo_upsert_many(collection='address_transactions', upsert_list_dict=address_transactions)
         for address in addresses.keys():
             if type(address) is tuple:
                 address_key = address[0]
@@ -1438,6 +1838,63 @@ class SwitcheoSmartContract(object):
                     update={'$set': {'snapshot': addresses[address]}},
                     upsert=True
                 )
+                self.update_rich_list(address=address)
+
+    def get_address_balance(self, address):
+        asset_dict = {}
+        balance_dict = self._get(url='https://api.neoscan.io/api/main_net/v1/get_balance/' + address)
+        for asset in balance_dict['balance']:
+            asset_dict[asset['asset_symbol']] = asset['amount']
+        return asset_dict
+
+    def ingest_current_address_balance(self, addresses):
+        # addresses = self.ni.mongo_db['addresses'].find().distinct('_id')
+        print(len(addresses))
+        i = 0
+        for address in addresses:
+            i += 1
+            print(i)
+            self.ni.mongo_db['addresses'].update_one(
+                filter={'_id': address},
+                update={
+                    '$set': {
+                        'baseline_balance': self.get_address_balance(address=address),
+                    }
+                },
+                upsert=True,
+            )
+
+    def update_rich_list(self, address):
+        addr = self.ni.mongo_db['addresses'].find_one({'_id': address})
+        if 'baseline_balance' in addr and'SWTH' in addr['baseline_balance']:
+            total_amt = int(addr['baseline_balance']['SWTH'] * 100000000)
+        else:
+            total_amt = 0
+        address_regex = re.compile("^" + addr['_id'])
+        on_chain_amt = 0
+        smart_contract_amt = 0
+        for txn in self.ni.mongo_db['address_transactions'].find({'_id': {'$regex': address_regex}, }).sort('block_number'):
+            if txn['asset'] == 'SWTH':
+                if txn['block_date'] >= '2018-10-30' and 'total' in txn:
+                    total_amt += txn['total']
+                if 'on_chain' in txn:
+                    on_chain_amt += txn['on_chain']
+                if 'smart_contract' in txn:
+                    smart_contract_amt += txn['smart_contract']
+        balance_dict = {
+            'total': total_amt,
+            'on_chain': on_chain_amt,
+            'smart_contract': smart_contract_amt
+        }
+        self.ni.mongo_db['addresses'].update_one(
+            filter={'_id': addr['_id']},
+            update={
+                '$set': {
+                    'rich_list': balance_dict,
+                }
+            },
+            upsert=True
+        )
 
     def get_contract_balance(self, address, asset):
         function_name = 'getBalance'
