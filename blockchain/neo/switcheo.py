@@ -779,7 +779,6 @@ class SwitcheoSmartContract(object):
 
     def ingest_switcheo_transactions(self, neo_blocks):
         for neo_block in neo_blocks:
-            print(neo_block['index'])
             for transaction in neo_block['tx']:
                 switcheo_transaction = self.deserialize_transaction(neo_block, transaction)
                 if switcheo_transaction is not None:
@@ -1193,11 +1192,6 @@ class SwitcheoSmartContract(object):
                 maker_address_date = (maker_address, txn_date)
                 maker_address_date_dict = {'address': maker_address, 'date': txn_date}
                 addresses[maker_address_date] = self.ni.mongo_db['addresses_date'].find_one({'_id': maker_address_date_dict})
-                trade_pair = txn['offer_asset_name'] + "_" + txn['want_asset_name']
-                if trade_pair not in self.neo_trade_pair_list:
-                    trade_pair = txn['want_asset_name'] + "_" + txn['offer_asset_name']
-                    if trade_pair not in self.neo_trade_pair_list:
-                        exit("Incorrect trade pair - " + trade_pair)
                 if addresses[maker_address] is None:
                     addresses[maker_address] = {}
                 if addresses[maker_address_date] is None:
@@ -1234,6 +1228,14 @@ class SwitcheoSmartContract(object):
                     addresses[maker_address]['takes'] = {}
                 if 'takes' not in addresses[maker_address_date]:
                     addresses[maker_address_date]['takes'] = {}
+                try:
+                    trade_pair = txn['offer_asset_name'] + "_" + txn['want_asset_name']
+                except TypeError:
+                    continue
+                if trade_pair not in self.neo_trade_pair_list:
+                    trade_pair = txn['want_asset_name'] + "_" + txn['offer_asset_name']
+                    if trade_pair not in self.neo_trade_pair_list:
+                        exit("Incorrect trade pair - " + trade_pair)
 
             if txn['switcheo_transaction_type'] == 'fillOffer':
                 if txn['taker_amount'] is not None:
@@ -1870,31 +1872,35 @@ class SwitcheoSmartContract(object):
             total_amt = int(addr['baseline_balance']['SWTH'] * 100000000)
         else:
             total_amt = 0
-        address_regex = re.compile("^" + addr['_id'])
-        on_chain_amt = 0
-        smart_contract_amt = 0
-        for txn in self.ni.mongo_db['address_transactions'].find({'_id': {'$regex': address_regex}, }).sort('block_number'):
-            if txn['asset'] == 'SWTH':
-                if txn['block_date'] >= '2018-10-30' and 'total' in txn:
-                    total_amt += txn['total']
-                if 'on_chain' in txn:
-                    on_chain_amt += txn['on_chain']
-                if 'smart_contract' in txn:
-                    smart_contract_amt += txn['smart_contract']
-        balance_dict = {
-            'total': total_amt,
-            'on_chain': on_chain_amt,
-            'smart_contract': smart_contract_amt
-        }
-        self.ni.mongo_db['addresses'].update_one(
-            filter={'_id': addr['_id']},
-            update={
-                '$set': {
-                    'rich_list': balance_dict,
-                }
-            },
-            upsert=True
-        )
+        try:
+            address_regex = re.compile("^" + addr['_id'])
+            on_chain_amt = 0
+            smart_contract_amt = 0
+            for txn in self.ni.mongo_db['address_transactions'].find({'_id': {'$regex': address_regex}, }).sort(
+                    'block_number'):
+                if txn['asset'] == 'SWTH':
+                    if txn['block_date'] >= '2018-10-30' and 'total' in txn:
+                        total_amt += txn['total']
+                    if 'on_chain' in txn:
+                        on_chain_amt += txn['on_chain']
+                    if 'smart_contract' in txn:
+                        smart_contract_amt += txn['smart_contract']
+            balance_dict = {
+                'total': total_amt,
+                'on_chain': on_chain_amt,
+                'smart_contract': smart_contract_amt
+            }
+            self.ni.mongo_db['addresses'].update_one(
+                filter={'_id': addr['_id']},
+                update={
+                    '$set': {
+                        'rich_list': balance_dict,
+                    }
+                },
+                upsert=True
+            )
+        except TypeError:
+            pass
 
     def get_contract_balance(self, address, asset):
         function_name = 'getBalance'
