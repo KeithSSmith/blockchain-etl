@@ -27,8 +27,8 @@ class SwitcheoSmartContract(object):
                  mongodb_port='27017',
                  mongodb_db='neo'
     ):
-        # self.neo_rpc_client = self.get_neo_node()
-        self.neo_rpc_client = NeoExplorerRPC(host=rpc_hostname, port=rpc_port, tls=rpc_tls)
+        self.neo_rpc_client = self.get_neo_node()
+        # self.neo_rpc_client = NeoExplorerRPC(host=rpc_hostname, port=rpc_port, tls=rpc_tls)
         self.contract_hash = contract_hash
         self.function_params = []
         self.switcheo_transactions = []
@@ -101,9 +101,11 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list = self.get_neo_contract_list()
         self.neo_contract_list.append('78e6d16b914fe15bc16150aeb11d0c2a8e532bdd')
         self.neo_contract_list.append('ab38352559b8b203bde5fddfa0b07d8b2525e132')
+        self.neo_contract_list.append('3a4acd3647086e7c44398aac0349802e6a171129')
         self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
+        self.neo_contract_dict['3a4acd3647086e7c44398aac0349802e6a171129'] = 'NEX'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -113,6 +115,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['a58b56b30425d3d1f8902034996fcac4168ef71d'] = 'ASA'
         self.neo_token_dict['3a4acd3647086e7c44398aac0349802e6a171129'] = 'NEX'
         self.neo_token_dict['a4f408df2a1ec2a950ec5fd06d7b9dc5f83b9e73'] = 'SDT'
+        self.neo_token_dict['c9c0fc5a2b66a29d6b14601e752e6e1a445e088d'] = 'NOS'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
@@ -141,10 +144,12 @@ class SwitcheoSmartContract(object):
     def is_trading_active(self):
         state_dict = {"00": False, "01": True}
         function_name = 'getState'
-        # response_script = self.get_neo_node().invokefunction(script_hash=self.contract_hash,
-        response_script = self.neo_rpc_client.invokefunction(script_hash=self.contract_hash,
+        response_script = self.get_neo_node().invokefunction(script_hash=self.contract_hash,
                                                              operation=function_name,
                                                              params=self.function_params)
+        # response_script = self.neo_rpc_client.invokefunction(script_hash=self.contract_hash,
+        #                                                      operation=function_name,
+        #                                                      params=self.function_params)
         return state_dict[reverse_hex(response_script['stack'][0]['value'])]
 
     def get_neo_contract_list(self):
@@ -194,7 +199,8 @@ class SwitcheoSmartContract(object):
 
         neo_node_max_height_list = []
         for neo_node in neo_node_list:
-            if neo_node['neo_node_height'] == neo_node_max_height and 'neo.org' not in neo_node['neo_node_url']:
+            if neo_node['neo_node_height'] == neo_node_max_height and 'neo.org' not in neo_node['neo_node_url']\
+                    and 'rustylogic.ddns.net' not in neo_node['neo_node_url']:
                 neo_node_max_height_list.append(neo_node)
 
         rand_int = random.randint(0, len(neo_node_max_height_list) - 1)
@@ -204,10 +210,13 @@ class SwitcheoSmartContract(object):
                               tls=neo_node_max_height_list[rand_int]['neo_node_tls'])
 
     def get_neo_block_height(self):
-        # return self.get_neo_node().getblockcount() - 1 # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
         try:
+            # return self.get_neo_node().getblockcount() - 1  # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
             return self.neo_rpc_client.getblockcount() - 1  # I believe this is required b/c the block needs at least 1 confirmation so you can't retrieve the most recent block.
         except RequestsConnectionError:
+            self.get_neo_block_height()
+        except Exception as e:
+            print("Generic Exception - " + e)
             self.get_neo_block_height()
 
     def get_neo_latest_block(self):
@@ -215,12 +224,19 @@ class SwitcheoSmartContract(object):
         return self.neo_rpc_client.get_block_by_number(block_number=self.get_neo_block_height())
 
     def get_neo_bulk_blocks(self, block_number_list):
-        pool = ThreadPool(25)
+        pool = ThreadPool(5)
         try:
             # block_list = pool.map(self.get_neo_node().get_block_by_number, block_number_list)
             block_list = pool.map(self.neo_rpc_client.get_block_by_number, block_number_list)
         except RequestsConnectionError:
+            self.neo_rpc_client = self.get_neo_node()
             self.get_neo_bulk_blocks(block_number_list=block_number_list)
+            block_list = []
+        except Exception as e:
+            print("Generic Exception - " + e)
+            self.neo_rpc_client = self.get_neo_node()
+            self.get_neo_bulk_blocks(block_number_list=block_number_list)
+            block_list = []
         pool.close()
         pool.join()
         return block_list
@@ -765,6 +781,7 @@ class SwitcheoSmartContract(object):
 
     def ingest_missing_neo_blocks(self):
         neo_block_start_height = 2000000
+        self.neo_rpc_client = self.get_neo_node()
         neo_block_height = self.get_neo_block_height()
         switcheo_blocks_ingested = self.ni.get_collection_count(collection='blocks')
         switcheo_blocks_ingested_offset = switcheo_blocks_ingested + neo_block_start_height
@@ -773,7 +790,8 @@ class SwitcheoSmartContract(object):
                                                     block_offset=neo_block_start_height,
                                                     blocks_ingested=switcheo_blocks_ingested,
                                                     blocks_ingested_list=switcheo_blocks_ingested_list)
-        for block_number_chunk in self.chunk_list(input_list=missing_blocks, chunk_size=200):
+        missing_blocks.sort()
+        for block_number_chunk in self.chunk_list(input_list=missing_blocks, chunk_size=10):
             neo_blocks = self.get_neo_bulk_blocks(block_number_list=block_number_chunk)
             self.ingest_switcheo_transactions(neo_blocks=neo_blocks)
 
@@ -791,14 +809,14 @@ class SwitcheoSmartContract(object):
                         self.deserialize_offer_hash(txn=switcheo_transaction)
                     if switcheo_transaction['switcheo_transaction_type'] in ['deposit', 'fillOffer', 'makeOffer', 'transfer']:
                         self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
-                if len(self.switcheo_transactions) % 500 == 0:
+                if len(self.switcheo_transactions) % 10 == 0:
                     self.ni.mongo_upsert_many(collection='transactions', upsert_list_dict=self.switcheo_transactions)
                     self.switcheo_transactions.clear()
                     self.ni.mongo_upsert_many(collection='fees', upsert_list_dict=self.switcheo_fees)
                     self.switcheo_fees.clear()
                     self.ni.mongo_upsert_many(collection='freezes', upsert_list_dict=self.switcheo_freezes)
                     self.switcheo_freezes.clear()
-        if len(self.switcheo_transactions) % 500 != 0:
+        if len(self.switcheo_transactions) % 10 != 0:
             self.ni.mongo_upsert_many(collection='transactions', upsert_list_dict=self.switcheo_transactions)
             self.ni.mongo_upsert_many(collection='fees', upsert_list_dict=self.switcheo_fees)
             self.ni.mongo_upsert_many(collection='freezes', upsert_list_dict=self.switcheo_freezes)

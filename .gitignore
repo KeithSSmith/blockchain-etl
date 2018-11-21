@@ -14,3 +14,5 @@ blockchain_etl\.egg-info/
 dist/
 
 build/
+
+test_auto_ingest\.py
