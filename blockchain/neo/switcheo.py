@@ -43,6 +43,7 @@ class SwitcheoSmartContract(object):
             'deposit': self.deserialize_deposit,
             'fillOffer': self.deserialize_fill_offer,
             'freezeTrading': self.deserialize_freeze_trading,
+            'generate_tokens': self.deserizlize_generate_tokens,
             'initialize': self.deserialize_initialize,
             'makeOffer': self.deserialize_make_offer,
             'mintTokens': self.deserialize_mint_tokens,
@@ -75,7 +76,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'freezeTrading').decode('utf-8')): 'freezeTrading',
             str(binascii.hexlify(b'unfreezeTrading').decode('utf-8')): 'unfreezeTrading',
             str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist',
-            str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy'
+            str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
+            str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -530,6 +532,9 @@ class SwitcheoSmartContract(object):
             'trade_state': 'Inactive' if int(str(script[0])[4:]) == 0 else 'Active'
         }
         return freeze_trading_dict
+
+    def deserizlize_generate_tokens(self, block, txn, script):
+        pass
 
     def deserialize_initialize(self, block, txn, script):
         pass
