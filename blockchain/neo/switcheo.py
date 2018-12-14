@@ -361,7 +361,14 @@ class SwitcheoSmartContract(object):
             deposit_amount = int(reverse_hex(deposit_amount_original), 16)
             deposit_amount_fixed8 = SwitcheoFixed8(deposit_amount).ToString()
         else:
-            deposit_amount_original = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:]).rjust(16, '0')
+            hex_string = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:])
+            hex_bytes = int(str(script[0]).split()[0][-1])
+            if hex_bytes < 8:
+                deposit_amount_original = hex_string.ljust(16, '0')
+            elif hex_bytes == 8:
+                deposit_amount_original = hex_string.rjust(16, '0')
+            else:
+                raise ValueError('Deposit Hex Byte amount greater than 8.')
             deposit_amount = int(reverse_hex(deposit_amount_original), 16)
             deposit_amount_fixed8 = SwitcheoFixed8(deposit_amount).ToString()
         deposit_dict = {
@@ -478,7 +485,14 @@ class SwitcheoSmartContract(object):
                 taker_amount = int(reverse_hex(taker_amount_original), 16)
                 taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
             else:
-                fee_amount_original = self.zero_pad_if_odd_length_string(str(script[1]).split()[1][2:]).rjust(16, '0')
+                hex_string = self.zero_pad_if_odd_length_string(str(script[1]).split()[1][2:])
+                hex_bytes = int(str(script[1]).split()[0][-1])
+                if hex_bytes < 8:
+                    fee_amount_original = hex_string.ljust(16, '0')
+                elif hex_bytes == 8:
+                    fee_amount_original = hex_string.rjust(16, '0')
+                else:
+                    raise ValueError('Fee Hex Byte amount greater than 8.')
                 fee_amount = int(reverse_hex(fee_amount_original), 16)
                 fee_amount_fixed8 = SwitcheoFixed8(fee_amount).ToString()
                 if len(str(script[3]).split()) == 1:
@@ -486,7 +500,14 @@ class SwitcheoSmartContract(object):
                     taker_amount = int(taker_amount_original[4:])
                     taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
                 else:
-                    taker_amount_original = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:]).rjust(16, '0')
+                    hex_string = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:])
+                    hex_bytes = int(str(script[3]).split()[0][-1])
+                    if hex_bytes < 8:
+                        taker_amount_original = hex_string.ljust(16, '0')
+                    elif hex_bytes == 8:
+                        taker_amount_original = hex_string.rjust(16, '0')
+                    else:
+                        raise ValueError('Taker Hex Byte amount greater than 8.')
                     taker_amount = int(reverse_hex(taker_amount_original), 16)
                     taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
             fill_offer_dict = {
@@ -590,7 +611,14 @@ class SwitcheoSmartContract(object):
                 offer_amount = int(reverse_hex(offer_amount_original), 16)
                 offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
             else:
-                want_amount_original = self.zero_pad_if_odd_length_string(str(script[1]).split()[1][2:]).rjust(16, '0')
+                hex_string = self.zero_pad_if_odd_length_string(str(script[1]).split()[1][2:])
+                hex_bytes = int(str(script[1]).split()[0][-1])
+                if hex_bytes < 8:
+                    want_amount_original = hex_string.ljust(16, '0')
+                elif hex_bytes == 8:
+                    want_amount_original = hex_string.rjust(16, '0')
+                else:
+                    raise ValueError('Want Hex Byte amount greater than 8.')
                 want_amount = int(reverse_hex(want_amount_original), 16)
                 want_amount_fixed8 = SwitcheoFixed8(want_amount).ToString()
                 if len(str(script[3]).split()) == 1:
@@ -598,7 +626,14 @@ class SwitcheoSmartContract(object):
                     offer_amount = int(offer_amount_original[4:])
                     offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
                 else:
-                    offer_amount_original = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:]).rjust(16, '0')
+                    hex_string = self.zero_pad_if_odd_length_string(str(script[3]).split()[1][2:])
+                    hex_bytes = int(str(script[3]).split()[0][-1])
+                    if hex_bytes < 8:
+                        offer_amount_original = hex_string.ljust(16, '0')
+                    elif hex_bytes == 8:
+                        offer_amount_original = hex_string.rjust(16, '0')
+                    else:
+                        raise ValueError('Offer Hex Byte amount greater than 8.')
                     offer_amount = int(reverse_hex(offer_amount_original), 16)
                     offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
             if len(str(script[0]).split()[1][2:]) == 16:
@@ -717,7 +752,14 @@ class SwitcheoSmartContract(object):
                 transfer_amount = int(transfer_amount_original, 16)
                 transfer_amount_fixed8 = SwitcheoFixed8(transfer_amount).ToString()
             else:
-                transfer_amount_original = self.zero_pad_if_odd_length_string(str(script[transfer_index]).split()[1][2:], output_size=16)
+                hex_string = self.zero_pad_if_odd_length_string(str(script[transfer_index]).split()[1][2:])
+                hex_bytes = int(str(script[transfer_index]).split()[0][-1])
+                if hex_bytes < 8:
+                    transfer_amount_original = hex_string.ljust(16, '0')
+                elif hex_bytes == 8:
+                    transfer_amount_original = hex_string.rjust(16, '0')
+                else:
+                    raise ValueError('Transfer Hex Byte amount greater than 8.')
                 transfer_amount = int(reverse_hex(transfer_amount_original), 16)
                 transfer_amount_fixed8 = SwitcheoFixed8(transfer_amount).ToString()
             to_address_original = self.zero_pad_if_odd_length_string(str(script[transfer_index + 1]).split()[1][2:], output_size=40)
@@ -810,6 +852,7 @@ class SwitcheoSmartContract(object):
         for neo_block in neo_blocks:
             for transaction in neo_block['tx']:
                 switcheo_transaction = self.deserialize_transaction(neo_block, transaction)
+                print(switcheo_transaction)
                 if switcheo_transaction is not None:
                     self.switcheo_transactions.append(switcheo_transaction)
                     if switcheo_transaction['switcheo_transaction_type'] == 'fillOffer':
@@ -818,8 +861,8 @@ class SwitcheoSmartContract(object):
                         self.switcheo_freezes.append(switcheo_transaction)
                     if switcheo_transaction['switcheo_transaction_type'] in ['cancel', 'fillOffer', 'makeOffer']:
                         self.deserialize_offer_hash(txn=switcheo_transaction)
-                    if switcheo_transaction['switcheo_transaction_type'] in ['deposit', 'fillOffer', 'makeOffer', 'transfer']:
-                        self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
+                    # if switcheo_transaction['switcheo_transaction_type'] in ['deposit', 'fillOffer', 'makeOffer', 'transfer']:
+                    #     self.address_stats(txns=[switcheo_transaction], txn_date=switcheo_transaction['block_date'])
                 if len(self.switcheo_transactions) % 10 == 0:
                     self.ni.mongo_upsert_many(collection='transactions', upsert_list_dict=self.switcheo_transactions)
                     self.switcheo_transactions.clear()
@@ -874,43 +917,47 @@ class SwitcheoSmartContract(object):
             upsert=True
         )
         offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
+        print(offer_hash)
         if 'maker_amount_open' in offer_hash and offer_hash['maker_amount_open'] is not None and txn['taker_amount'] is not None:
-            maker_amount_open = offer_hash['maker_amount_open'] - txn['taker_amount']
+            maker_amount_open = int(offer_hash['maker_amount_open']) - txn['taker_amount']
         elif txn['taker_amount'] is not None:
             maker_amount_open = 0 - txn['taker_amount']
         else:
             maker_amount_open = None
         if 'amount_filled' in offer_hash and offer_hash['amount_filled'] is not None and txn['taker_amount'] is not None:
-            amount_filled = offer_hash['amount_filled'] + txn['taker_amount']
+            amount_filled = int(offer_hash['amount_filled']) + txn['taker_amount']
         elif txn['taker_amount'] is not None:
             amount_filled = txn['taker_amount']
         else:
             amount_filled = None
-        if maker_amount_open == 0:
-            return self.ni.mongo_db['offer_hash'].update_one(
-                    filter={'_id': txn['offer_hash']},
-                    update={
-                        '$set':
-                            {
-                                'status': 'filled',
-                                'maker_amount_open': 0,
-                                'amount_filled': amount_filled,
-                            }
-                    },
-                    upsert=True
-                )
-        else:
-            return self.ni.mongo_db['offer_hash'].update_one(
-                    filter={'_id': txn['offer_hash']},
-                    update={
-                        '$set':
-                            {
-                                'maker_amount_open': maker_amount_open,
-                                'amount_filled': amount_filled,
-                            }
-                    },
-                    upsert=True
-                )
+        # if maker_amount_open == 0:
+        #     return self.ni.mongo_db['offer_hash'].update_one(
+        #             filter={'_id': txn['offer_hash']},
+        #             update={
+        #                 '$set':
+        #                     {
+        #                         'status': 'filled',
+        #                         'maker_amount_open': 0,
+        #                         'amount_filled': amount_filled,
+        #                     }
+        #             },
+        #             upsert=True
+        #         )
+        # else:
+        #     print(txn)
+        #     print(maker_amount_open)
+        #     print(amount_filled)
+        #     return self.ni.mongo_db['offer_hash'].update_one(
+        #             filter={'_id': txn['offer_hash']},
+        #             update={
+        #                 '$set':
+        #                     {
+        #                         'maker_amount_open': maker_amount_open,
+        #                         'amount_filled': amount_filled,
+        #                     }
+        #             },
+        #             upsert=True
+        #         )
 
     def deserialize_address(self, txn):
         return self.address_functions[txn['switcheo_transaction_type']](txn)
@@ -934,7 +981,6 @@ class SwitcheoSmartContract(object):
                 'want_asset_name': offer_hash['want_asset_name']
             }
             address = offer_hash['maker_address']
-            print(address)
             return self.ni.mongo_db['addresses'].update_one(
                 filter={'_id': address},
                 update={
@@ -965,7 +1011,6 @@ class SwitcheoSmartContract(object):
             'transaction_hash': txn['transaction_hash']
         }
         address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
-        print(address)
         return self.ni.mongo_db['addresses'].update_one(
             filter={'_id': address},
             update={
@@ -1047,7 +1092,6 @@ class SwitcheoSmartContract(object):
                     'transaction_hash': txn['transaction_hash']
                 }
             address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
-            print(address)
             return self.ni.mongo_db['addresses'].update_one(
                 filter={'_id': address},
                 update={
@@ -1076,7 +1120,6 @@ class SwitcheoSmartContract(object):
             'transaction_hash': txn['transaction_hash']
         }
         address = txn[self.address_transaction_dict[txn['switcheo_transaction_type']]]
-        print(address)
         return self.ni.mongo_db['addresses'].update_one(
             filter={'_id': address},
             update={
@@ -1104,7 +1147,6 @@ class SwitcheoSmartContract(object):
             }
             withdraw['withdrawals'].append(withdraw_dict)
         address = txn['withdrawals'][0][self.address_transaction_dict[txn['switcheo_transaction_type']]]
-        print(address)
         return self.ni.mongo_db['addresses'].update_one(
             filter={'_id': address},
             update={
@@ -1271,7 +1313,7 @@ class SwitcheoSmartContract(object):
                     if txn['fee_amount_original'] == 'PUSH0':
                         offer_hash = []
                     if 'want_amount' in offer_hash:
-                        offer_ratio = round(offer_hash['want_amount'] / offer_hash['offer_amount'], 8)
+                        offer_ratio = round(int(offer_hash['want_amount']) / int(offer_hash['offer_amount']), 8)
                         # Taker Fees Paid
                         if txn['fee_asset_name'] not in addresses[taker_address]['fees_paid']:
                             addresses[taker_address]['fees_paid'][txn['fee_asset_name']] = txn['fee_amount']
