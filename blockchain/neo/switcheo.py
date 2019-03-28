@@ -97,7 +97,7 @@ class SwitcheoSmartContract(object):
             'makeOffer': 'maker_address',
             'withdrawal': 'withdraw_address'
         }
-        self.sc = SwitcheoClient(api_url='https://api.switcheo.network/')
+        self.sc = SwitcheoClient(switcheo_network='main')
         self.ni = NeoIngest(protocol=mongodb_protocol, username=mongodb_user, password=mongodb_password,
                             hostname=mongodb_hostname, port=mongodb_port, database=mongodb_db)
         self.neo_contract_list = self.get_neo_contract_list()
