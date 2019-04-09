@@ -109,6 +109,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list.append('0dc27e3977160128c0dd6077a4b5a8b088eed151')
         self.neo_contract_list.append('af7c7328eee5a275a3bcaee2bf0cf662b5e739be')
         self.neo_contract_list.append('b9a70a85136ed73f1f94e83edfee68c00daf412f')
+        self.neo_contract_list.append('acbc532904b6b51b5ea6d19b803d78af70e7e6f9')
         self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
@@ -117,6 +118,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_dict['0dc27e3977160128c0dd6077a4b5a8b088eed151'] = 'RCPT'
         self.neo_contract_dict['af7c7328eee5a275a3bcaee2bf0cf662b5e739be'] = 'PKC'
         self.neo_contract_dict['b9a70a85136ed73f1f94e83edfee68c00daf412f'] = 'SWTH'
+        self.neo_contract_dict['acbc532904b6b51b5ea6d19b803d78af70e7e6f9'] = 'EFX'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -131,6 +133,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['0dc27e3977160128c0dd6077a4b5a8b088eed151'] = 'RCPT'
         self.neo_token_dict['af7c7328eee5a275a3bcaee2bf0cf662b5e739be'] = 'PKC'
         self.neo_token_dict['b9a70a85136ed73f1f94e83edfee68c00daf412f'] = 'Switcheo Token'
+        self.neo_token_dict['acbc532904b6b51b5ea6d19b803d78af70e7e6f9'] = 'EFX'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
@@ -603,8 +606,10 @@ class SwitcheoSmartContract(object):
 
             taker_amount_original = str(script[5])
             # BigInteger amountToTake
-            if taker_amount_original == 'PUSH0':
-                taker_amount = 0
+            if taker_amount_original.startswith('PUSH') and not taker_amount_original.startswith('PUSHBYTES'):
+                taker_amount_original = str(script[5]).split()[0]
+                taker_amount = int(taker_amount_original[4:])
+                taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
             else:
                 pad_length = int(taker_amount_original.split()[0][9:]) * 2
                 taker_amount_original = self.zero_pad_if_odd_length_string(taker_amount_original.split()[1][2:], output_size = pad_length)
@@ -615,8 +620,11 @@ class SwitcheoSmartContract(object):
             # byte[] offerHash
             offer_hash = reverse_hex(offer_hash_original)
 
-            taker_address_original = str(script[7]).split()[1][2:]
+            taker_address_original = str(script[7])
             # byte[] fillerAddress
+            pad_length = int(taker_address_original.split()[0][9:]) * 2
+            taker_address_original = self.zero_pad_if_odd_length_string(taker_address_original.split()[1][2:],
+                                                                        output_size=pad_length)
             taker_address = neo_get_address_from_scripthash(scripthash=reverse_hex(taker_address_original))
 
             fill_offer_dict = {
@@ -800,7 +808,7 @@ class SwitcheoSmartContract(object):
 
             offer_amount_original = str(script[5])
             # byte[] offerAmount
-            if offer_amount_original.startswith('PUSH'):
+            if offer_amount_original.startswith('PUSH') and not offer_amount_original.startswith('PUSHBYTES'):
                 offer_amount_original = str(script[5]).split()[0]
                 offer_amount = int(offer_amount_original[4:])
                 offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
@@ -1150,7 +1158,6 @@ class SwitcheoSmartContract(object):
         return self.address_functions[txn['switcheo_transaction_type']](txn)
 
     def address_cancel(self, txn):
-        # print(txn)
         offer_hash = self.ni.mongo_db['offer_hash'].find_one({'_id': txn['offer_hash']})
         if 'maker_address' in offer_hash:
             cancel = {
