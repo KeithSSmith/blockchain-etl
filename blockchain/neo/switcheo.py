@@ -36,6 +36,7 @@ class SwitcheoSmartContract(object):
         self.switcheo_freezes = []
         self.deserialize_script = {
             'addToWhitelist': self.deserialize_add_to_whitelist,
+            'announceCancel': self.deserialize_announce_withdraw,
             'announceWithdraw': self.deserialize_announce_withdraw,
             'approve': self.deserialize_approve,
             'cancelOffer': self.deserialize_cancel,
@@ -107,6 +108,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list.append('d613223fa138a1555ff711581982462acde209c5')
         self.neo_contract_list.append('0dc27e3977160128c0dd6077a4b5a8b088eed151')
         self.neo_contract_list.append('af7c7328eee5a275a3bcaee2bf0cf662b5e739be')
+        self.neo_contract_list.append('b9a70a85136ed73f1f94e83edfee68c00daf412f')
         self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
@@ -114,6 +116,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_dict['d613223fa138a1555ff711581982462acde209c5'] = 'TMN'
         self.neo_contract_dict['0dc27e3977160128c0dd6077a4b5a8b088eed151'] = 'RCPT'
         self.neo_contract_dict['af7c7328eee5a275a3bcaee2bf0cf662b5e739be'] = 'PKC'
+        self.neo_contract_dict['b9a70a85136ed73f1f94e83edfee68c00daf412f'] = 'SWTH'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -127,6 +130,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['d613223fa138a1555ff711581982462acde209c5'] = 'TMN'
         self.neo_token_dict['0dc27e3977160128c0dd6077a4b5a8b088eed151'] = 'RCPT'
         self.neo_token_dict['af7c7328eee5a275a3bcaee2bf0cf662b5e739be'] = 'PKC'
+        self.neo_token_dict['b9a70a85136ed73f1f94e83edfee68c00daf412f'] = 'Switcheo Token'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
@@ -322,6 +326,9 @@ class SwitcheoSmartContract(object):
     def deserialize_add_to_whitelist(self, block, txn, script):
         pass
 
+    def deserialize_announce_cancel(self, block, txn, script):
+        pass
+
     def deserialize_announce_withdraw(self, block, txn, script):
         pass
 
@@ -469,7 +476,7 @@ class SwitcheoSmartContract(object):
                 'use_native_token_original': use_native_token_original,
                 'use_native_token': use_native_token
             }
-        else:
+        elif contract_hash == '91b83e96f2a7c4fdf0c1688441ec61986c7cae26':
             script[2] = self.zero_pad_if_odd_length_string(str(script[2]).split()[1][2:])
             script[4] = self.zero_pad_if_odd_length_string(str(script[4]).split()[1][2:]).rjust(64, '0')
             script[5] = self.zero_pad_if_odd_length_string(str(script[5]).split()[1][2:]).rjust(40, '0')
@@ -537,6 +544,112 @@ class SwitcheoSmartContract(object):
                 'offer_hash': reverse_hex(script[4]),
                 'taker_address_original': script[5],
                 'taker_address': neo_get_address_from_scripthash(scripthash=reverse_hex(script[5]))
+            }
+        elif contract_hash in ['a32bcf5d7082f740a4007b16e812cf66a457c3d4', 'b9a70a85136ed73f1f94e83edfee68c00daf412f']:
+            maker_fee_burn_original = None
+            maker_fee_burn = None
+            maker_fee_burn_amount_original = None
+            maker_fee_hex_string = None
+            maker_fee_burn_amount = None
+            maker_fee_burn_amount_fixed8 = None
+            taker_fee_burn_original = None
+            taker_fee_burn = None
+            taker_fee_burn_amount_original = None
+            taker_fee_hex_string = None
+            taker_fee_burn_amount = None
+            taker_fee_burn_amount_fixed8 = None
+            taker_fee_asset_original = None
+            taker_fee_asset = None
+            taker_fee_asset_name = None
+            taker_amount_original = None
+
+            maker_fee_burn_original = str(script[0])
+            # bool burnMakerFee
+            if maker_fee_burn_original == 'PUSH1':
+                maker_fee_burn = True
+            elif maker_fee_burn_original == 'PUSH0':
+                maker_fee_burn = False
+
+            maker_fee_burn_amount_original = str(script[1])
+            # BigInteger makerFeeAmount
+            if maker_fee_burn_amount_original == 'PUSH0':
+                maker_fee_burn_amount = 0
+                maker_fee_burn_amount_fixed8 = SwitcheoFixed8(maker_fee_burn_amount).ToString()
+            else:
+                maker_fee_burn_amount_original = self.zero_pad_if_odd_length_string(maker_fee_burn_amount_original.split()[1][2:])
+                maker_fee_burn_amount = int(reverse_hex(maker_fee_burn_amount_original), 16)
+                maker_fee_burn_amount_fixed8 = SwitcheoFixed8(maker_fee_burn_amount).ToString()
+
+            taker_fee_burn_original = str(script[2])
+            # bool burnTakerFee
+            if taker_fee_burn_original == 'PUSH1':
+                taker_fee_burn = True
+            elif taker_fee_burn_original == 'PUSH0':
+                taker_fee_burn = False
+
+            taker_fee_burn_amount_original = str(script[3])
+            # BigInteger takerFeeAmount
+            if taker_fee_burn_amount_original == 'PUSH0':
+                taker_fee_burn_amount = 0
+            else:
+                taker_fee_burn_amount_original = self.zero_pad_if_odd_length_string(taker_fee_burn_amount_original.split()[1][2:])
+                taker_fee_burn_amount = int(reverse_hex(taker_fee_burn_amount_original), 16)
+                taker_fee_burn_amount_fixed8 = SwitcheoFixed8(taker_fee_burn_amount).ToString()
+
+            taker_fee_asset_original = str(script[4]).split()[1][2:]
+            # byte[] takerFeeAssetID
+            taker_fee_asset = reverse_hex(taker_fee_asset_original)
+            taker_fee_asset_name = self.neo_token_dict[taker_fee_asset]
+
+            taker_amount_original = str(script[5])
+            # BigInteger amountToTake
+            if taker_amount_original == 'PUSH0':
+                taker_amount = 0
+            else:
+                pad_length = int(taker_amount_original.split()[0][9:]) * 2
+                taker_amount_original = self.zero_pad_if_odd_length_string(taker_amount_original.split()[1][2:], output_size = pad_length)
+                taker_amount = int(reverse_hex(taker_amount_original), 16)
+                taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
+
+            offer_hash_original = self.zero_pad_if_odd_length_string(str(script[6]).split()[1][2:])
+            # byte[] offerHash
+            offer_hash = reverse_hex(offer_hash_original)
+
+            taker_address_original = str(script[7]).split()[1][2:]
+            # byte[] fillerAddress
+            taker_address = neo_get_address_from_scripthash(scripthash=reverse_hex(taker_address_original))
+
+            fill_offer_dict = {
+                'block_hash': block['hash'][2:],
+                'block_number': block['index'],
+                'block_size': block['size'],
+                'block_time': block['time'],
+                'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+                'contract_hash': txn['contract_hash'],
+                'contract_hash_version': txn['contract_hash_version'],
+                'transaction_hash': txn['txid'][2:],
+                'transaction_type': txn['type'],
+                'switcheo_transaction_type': 'fillOffer',
+                'maker_fee_burn_original': maker_fee_burn_original,
+                'maker_fee_burn': maker_fee_burn,
+                'maker_fee_burn_amount_original': maker_fee_burn_amount_original,
+                'maker_fee_burn_amount': maker_fee_burn_amount,
+                'maker_fee_burn_amount_fixed8': maker_fee_burn_amount_fixed8,
+                'taker_fee_burn_original': taker_fee_burn_original,
+                'taker_fee_burn': taker_fee_burn,
+                'taker_fee_burn_amount_original': taker_fee_burn_amount_original,
+                'taker_fee_burn_amount': taker_fee_burn_amount,
+                'taker_fee_burn_amount_fixed8': taker_fee_burn_amount_fixed8,
+                'taker_fee_asset_original': taker_fee_asset_original,
+                'taker_fee_asset': taker_fee_asset,
+                'taker_fee_asset_name': taker_fee_asset_name,
+                'taker_amount_original': taker_amount_original,
+                'taker_amount': taker_amount,
+                'taker_amount_fixed8': taker_amount_fixed8,
+                'offer_hash_original': offer_hash_original,
+                'offer_hash': offer_hash,
+                'taker_address_original': taker_address_original,
+                'taker_address': taker_address
             }
         return fill_offer_dict
 

@@ -2,4 +2,4 @@ neocore==0.5.4
 octopus==0.3.2
 pymongo[tls,srv]>=3.7.1
 requests>=2.20.0
-switcheo>=0.2.4
+switcheo>=0.3.3
