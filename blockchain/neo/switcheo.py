@@ -702,7 +702,7 @@ class SwitcheoSmartContract(object):
             maker_address = None
             switcheo_transaction_id_original = self.zero_pad_if_odd_length_string(str(script[4]).split()[1][2:]).rjust(64, '0')
             switcheo_transaction_id = 'v1.1' if contract_hash == '0ec5712e0f7c63e4b0fea31029a28cea5e9d551f' else 'v1.5'
-        else:
+        elif contract_hash == '91b83e96f2a7c4fdf0c1688441ec61986c7cae26':
             want_asset_original = self.zero_pad_if_odd_length_string(str(script[2]).split()[1][2:])
             want_asset = reverse_hex(want_asset_original)
             want_asset_name = self.neo_token_dict[want_asset]
@@ -764,6 +764,77 @@ class SwitcheoSmartContract(object):
                                                want_asset_amt=want_amount,
                                                want_asset_hash=want_asset,
                                                txn_uuid=switcheo_transaction_id)
+        elif contract_hash in ['a32bcf5d7082f740a4007b16e812cf66a457c3d4', 'b9a70a85136ed73f1f94e83edfee68c00daf412f']:
+            maker_fee_amount_original = str(script[1])
+            # byte[] makerFeeAvailableAmount
+            if maker_fee_amount_original == 'PUSH0':
+                maker_fee_amount = 0
+            else:
+                maker_fee_amount_original = self.zero_pad_if_odd_length_string(maker_fee_amount_original.split()[1][2:])
+                maker_fee_amount = int(reverse_hex(maker_fee_amount_original), 16)
+                maker_fee_amount_fixed8 = SwitcheoFixed8(maker_fee_amount).ToString()
+
+            maker_fee_asset_original = str(script[2])
+            # byte[] makerFeeAssetID
+            pad_length = int(maker_fee_asset_original.split()[0][9:]) * 2
+            maker_fee_asset_original = self.zero_pad_if_odd_length_string(maker_fee_asset_original.split()[1][2:],
+                                                                          output_size=pad_length)
+            maker_fee_asset = reverse_hex(maker_fee_asset_original)
+            maker_fee_asset_name = self.neo_token_dict[maker_fee_asset]
+
+            want_amount_original = str(script[3])
+            # byte[] wantAmount
+            pad_length = int(want_amount_original.split()[0][9:]) * 2
+            want_amount_original = self.zero_pad_if_odd_length_string(want_amount_original.split()[1][2:],
+                                                                      output_size=pad_length)
+            want_amount = int(reverse_hex(want_amount_original), 16)
+            want_amount_fixed8 = SwitcheoFixed8(want_amount).ToString()
+
+            want_asset_original = str(script[4])
+            # byte[] wantAssetID
+            pad_length = int(want_asset_original.split()[0][9:]) * 2
+            want_asset_original = self.zero_pad_if_odd_length_string(want_asset_original.split()[1][2:],
+                                                                     output_size=pad_length)
+            want_asset = reverse_hex(want_asset_original)
+            want_asset_name = self.neo_token_dict[want_asset]
+
+            offer_amount_original = str(script[5])
+            # byte[] offerAmount
+            if offer_amount_original.startswith('PUSH'):
+                offer_amount_original = str(script[5]).split()[0]
+                offer_amount = int(offer_amount_original[4:])
+                offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
+            else:
+                pad_length = int(offer_amount_original.split()[0][9:]) * 2
+                offer_amount_original = self.zero_pad_if_odd_length_string(offer_amount_original.split()[1][2:],
+                                                                           output_size=pad_length)
+                offer_amount = int(reverse_hex(offer_amount_original), 16)
+                offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
+
+            offer_asset_original = str(script[6])
+            # byte[] offerAssetID
+            pad_length = int(offer_asset_original.split()[0][9:]) * 2
+            offer_asset_original = self.zero_pad_if_odd_length_string(offer_asset_original.split()[1][2:],
+                                                                      output_size=pad_length)
+            offer_asset = reverse_hex(offer_asset_original)
+            offer_asset_name = self.neo_token_dict[offer_asset]
+
+            maker_address_original = str(script[7])
+            # byte[] makerAddress
+            pad_length = int(maker_address_original.split()[0][9:]) * 2
+            maker_address_original = self.zero_pad_if_odd_length_string(maker_address_original.split()[1][2:],
+                                                                        output_size=pad_length)
+            maker_address = neo_get_address_from_scripthash(scripthash=reverse_hex(maker_address_original))
+
+            # byte[] nonce
+            switcheo_transaction_id_original = self.zero_pad_if_odd_length_string(str(script[0]).split()[1][2:]).rjust(72, '0')
+            switcheo_transaction_id = bytes.fromhex(switcheo_transaction_id_original).decode('utf-8')
+            offer_hash = create_offer_hash(neo_address=maker_address,
+                                           offer_asset_amt=offer_amount,
+                                           offer_asset_hash=offer_asset,
+                                           want_asset_amt=want_amount,
+                                           want_asset_hash=want_asset,
+                                           txn_uuid=switcheo_transaction_id)
 
         make_offer_dict = {
             'block_hash': block['hash'][2:],
