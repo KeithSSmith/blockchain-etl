@@ -605,8 +605,11 @@ class SwitcheoSmartContract(object):
                 taker_fee_burn_amount = int(reverse_hex(taker_fee_burn_amount_original), 16)
                 taker_fee_burn_amount_fixed8 = SwitcheoFixed8(taker_fee_burn_amount).ToString()
 
-            taker_fee_asset_original = str(script[4]).split()[1][2:]
+            taker_fee_asset_original = str(script[4])
             # byte[] takerFeeAssetID
+            pad_length = int(taker_fee_asset_original.split()[0][9:]) * 2
+            taker_fee_asset_original = self.zero_pad_if_odd_length_string(taker_fee_asset_original.split()[1][2:],
+                                                                          output_size=pad_length)
             taker_fee_asset = reverse_hex(taker_fee_asset_original)
             taker_fee_asset_name = self.neo_token_dict[taker_fee_asset]
 
