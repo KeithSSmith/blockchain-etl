@@ -112,6 +112,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_list.append('acbc532904b6b51b5ea6d19b803d78af70e7e6f9')
         self.neo_contract_list.append('aac66f9779ca67d819d05492805d251dab02fc7b')
         self.neo_contract_list.append('c36aee199dbba6c3f439983657558cfb67629599')
+        self.neo_contract_list.append('1578103c13e39df15d0d29826d957e85d770d8c9')
         self.neo_contract_dict = self.get_neo_contract_dict()
         self.neo_contract_dict['ab38352559b8b203bde5fddfa0b07d8b2525e132'] = 'SWTH'
         self.neo_contract_dict['a87cc2a513f5d8b4a42432343687c2127c60bc3f'] = 'MCT'
@@ -123,6 +124,7 @@ class SwitcheoSmartContract(object):
         self.neo_contract_dict['acbc532904b6b51b5ea6d19b803d78af70e7e6f9'] = 'EFX'
         self.neo_contract_dict['aac66f9779ca67d819d05492805d251dab02fc7b'] = 'FTX'
         self.neo_contract_dict['c36aee199dbba6c3f439983657558cfb67629599'] = 'NKN'
+        self.neo_contract_dict['1578103c13e39df15d0d29826d957e85d770d8c9'] = 'PHX'
         self.neo_token_dict = self.get_neo_token_dict()
         self.neo_token_dict['78e6d16b914fe15bc16150aeb11d0c2a8e532bdd'] = 'Switcheo Token'
         self.neo_token_dict['ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9'] = 'RPX'
@@ -140,6 +142,7 @@ class SwitcheoSmartContract(object):
         self.neo_token_dict['acbc532904b6b51b5ea6d19b803d78af70e7e6f9'] = 'EFX'
         self.neo_token_dict['aac66f9779ca67d819d05492805d251dab02fc7b'] = 'FTX'
         self.neo_token_dict['c36aee199dbba6c3f439983657558cfb67629599'] = 'NKN'
+        self.neo_token_dict['1578103c13e39df15d0d29826d957e85d770d8c9'] = 'PHX'
         self.neo_contract_key_list = ['APPCALL', 'TAILCALL']
         self.neo_address_list = [
             'ASH41gtWftHvhuYhZz1jj7ee7z9vp9D9wk',
