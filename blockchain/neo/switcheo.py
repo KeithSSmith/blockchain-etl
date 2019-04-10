@@ -56,6 +56,7 @@ class SwitcheoSmartContract(object):
             'withdrawAssets': self.deserialize_withdraw_assets,
             'withdrawal': self.deserialize_withdrawal,
             'unlockAdvisor': self.deserialize_nkn_unlock_advisor,
+            'disableTransfer': self.deserialize_nkn_disable_transfer,
             'inflation': self.deserialize_phx_inflation,
             'unlockTeam': self.deserialize_unlock_team
         }
@@ -83,6 +84,7 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
+            str(binascii.hexlify(b'disableTransfer').decode('utf-8')): 'disableTransfer',
             str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
             str(binascii.hexlify(b'unlockTeam').decode('utf-8')): 'unlockTeam'
         }
@@ -309,6 +311,9 @@ class SwitcheoSmartContract(object):
                     return self.deserialize_script[disassemble_dict['function_name']](block, txn, script_disassembler)
 
     def deserialize_nkn_unlock_advisor(self, block, txn, script):
+        pass
+
+    def deserialize_nkn_disable_transfer(self, block, txn, script):
         pass
 
     def deserialize_phx_inflation(self, block, txn, script):
