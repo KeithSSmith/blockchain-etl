@@ -40,6 +40,7 @@ class SwitcheoSmartContract(object):
             'announceWithdraw': self.deserialize_announce_withdraw,
             'approve': self.deserialize_approve,
             'cancelOffer': self.deserialize_cancel,
+            'createAtomicSwap': self.deserialize_create_atomic_swap,
             'deploy': self.deserialize_deploy,
             'deposit': self.deserialize_deposit,
             'fillOffer': self.deserialize_fill_offer,
@@ -84,6 +85,7 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist',
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
+            str(binascii.hexlify(b'createAtomicSwap').decode('utf-8')): 'createAtomicSwap',
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
             str(binascii.hexlify(b'disableTransfer').decode('utf-8')): 'disableTransfer',
             str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
@@ -361,6 +363,118 @@ class SwitcheoSmartContract(object):
             'transaction_type': txn['type'],
         }
         return cancel_dict
+
+    def deserialize_create_atomic_swap(self, block, txn, script):
+        burn_token_original = str(script[0])
+        # burnTokens - Bool
+        if burn_token_original == 'PUSH1':
+            burn_token = True
+        elif burn_token_original == 'PUSH0':
+            burn_token = False
+
+        fee_amount_original = str(script[1])
+        # feeAmount
+        if fee_amount_original.startswith('PUSH') and not fee_amount_original.startswith('PUSHBYTES'):
+            fee_amount_original = fee_amount_original.split()[0]
+            fee_amount = int(fee_amount_original[4:])
+            fee_amount_fixed8 = SwitcheoFixed8(fee_amount).ToString()
+        else:
+            fee_amount_original = self.zero_pad_if_odd_length_string(fee_amount_original.split()[1][2:])
+            fee_amount = int(reverse_hex(fee_amount_original), 16)
+            fee_amount_fixed8 = SwitcheoFixed8(fee_amount).ToString()
+
+        fee_asset_original = str(script[2])
+        # feeAssetID
+        pad_length = int(fee_asset_original.split()[0][9:]) * 2
+        fee_asset_original = self.zero_pad_if_odd_length_string(fee_asset_original.split()[1][2:],
+                                                                output_size=pad_length)
+        fee_asset = reverse_hex(fee_asset_original)
+        fee_asset_name = self.neo_token_dict[fee_asset]
+
+        expiry_time_original = str(script[3])
+        # expiryTime
+        pad_length = int(expiry_time_original.split()[0][9:]) * 2
+        expiry_time_original = self.zero_pad_if_odd_length_string(expiry_time_original.split()[1][2:],
+                                                                  output_size=pad_length)
+        expiry_time = reverse_hex(expiry_time_original)
+
+        hash_of_secret_original = str(script[4])
+        # hashOfSecret
+        pad_length = int(hash_of_secret_original.split()[0][9:]) * 2
+        hash_of_secret_original = self.zero_pad_if_odd_length_string(hash_of_secret_original.split()[1][2:],
+                                                                     output_size=pad_length)
+        hash_of_secret = reverse_hex(hash_of_secret_original)
+
+        amount_original = str(script[5])
+        # amount
+        if amount_original.startswith('PUSH') and not amount_original.startswith('PUSHBYTES'):
+            amount_original = amount_original.split()[0]
+            amount = int(amount_original[4:])
+            amount_fixed8 = SwitcheoFixed8(amount).ToString()
+        else:
+            pad_length = int(amount_original.split()[0][9:]) * 2
+            amount_original = self.zero_pad_if_odd_length_string(amount_original.split()[1][2:],
+                                                                 output_size=pad_length)
+            amount = int(reverse_hex(amount_original), 16)
+            amount_fixed8 = SwitcheoFixed8(amount).ToString()
+
+        asset_original = str(script[6])
+        # assetID
+        pad_length = int(asset_original.split()[0][9:]) * 2
+        asset_original = self.zero_pad_if_odd_length_string(asset_original.split()[1][2:],
+                                                            output_size=pad_length)
+        asset = reverse_hex(asset_original)
+        asset_name = self.neo_token_dict[asset]
+
+        taker_address_original = str(script[7])
+        # takerAddress
+        pad_length = int(taker_address_original.split()[0][9:]) * 2
+        taker_address_original = self.zero_pad_if_odd_length_string(taker_address_original.split()[1][2:],
+                                                                    output_size=pad_length)
+        taker_address = neo_get_address_from_scripthash(scripthash=reverse_hex(taker_address_original))
+
+        maker_address_original = str(script[8])
+        # makerAddress
+        pad_length = int(maker_address_original.split()[0][9:]) * 2
+        maker_address_original = self.zero_pad_if_odd_length_string(maker_address_original.split()[1][2:],
+                                                                    output_size=pad_length)
+        maker_address = neo_get_address_from_scripthash(scripthash=reverse_hex(maker_address_original))
+
+        create_atomic_swap_dict = {
+            'block_hash': block['hash'][2:],
+            'block_number': block['index'],
+            'block_size': block['size'],
+            'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
+            'transaction_hash': txn['txid'][2:],
+            'transaction_type': txn['type'],
+            'switcheo_transaction_type': 'createAtomicSwap',
+            'burn_token_original': burn_token_original,
+            'burn_token': burn_token,
+            'fee_amount_original': fee_amount_original,
+            'fee_amount': fee_amount,
+            'fee_amount_fixed8': fee_amount_fixed8,
+            'fee_asset_original': fee_asset_original,
+            'fee_asset': fee_asset,
+            'fee_asset_name': fee_asset_name,
+            'expiry_time_original': expiry_time_original,
+            'expiry_time': expiry_time,
+            'hash_of_secret_original': hash_of_secret_original,
+            'hash_of_secret': hash_of_secret,
+            'amount_original': amount_original,
+            'amount': amount,
+            'amount_fixed8': amount_fixed8,
+            'asset_original': asset_original,
+            'asset': asset,
+            'asset_name': asset_name,
+            'taker_address_original': taker_address_original,
+            'taker_address': taker_address,
+            'maker_address_original': maker_address_original,
+            'maker_address': maker_address
+        }
+        return create_atomic_swap_dict
 
     def deserialize_deploy(self, block, txn, script):
         pass
