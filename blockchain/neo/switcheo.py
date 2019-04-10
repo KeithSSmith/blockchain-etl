@@ -58,7 +58,8 @@ class SwitcheoSmartContract(object):
             'unlockAdvisor': self.deserialize_nkn_unlock_advisor,
             'disableTransfer': self.deserialize_nkn_disable_transfer,
             'inflation': self.deserialize_phx_inflation,
-            'unlockTeam': self.deserialize_unlock_team
+            'unlockTeam': self.deserialize_unlock_team,
+            'passUnknown': self.deserialize_pass_unknown
         }
         self.neo_smart_contract_function_dict = {
             str(binascii.hexlify(b'deposit').decode('utf-8')): 'deposit',
@@ -86,7 +87,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
             str(binascii.hexlify(b'disableTransfer').decode('utf-8')): 'disableTransfer',
             str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
-            str(binascii.hexlify(b'unlockTeam').decode('utf-8')): 'unlockTeam'
+            str(binascii.hexlify(b'unlockTeam').decode('utf-8')): 'unlockTeam',
+            str(binascii.hexlify(b'passUnknown').decode('utf-8')): 'passUnknown'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -296,8 +298,14 @@ class SwitcheoSmartContract(object):
                                     disassemble_dict['function']]
                             if reverse_hex(disassemble_dict['contract']) in self.neo_contract_list and 'function' in disassemble_dict:
                                 is_switcheo = True
-                                disassemble_dict['function_name'] = self.neo_smart_contract_function_dict[
-                                    disassemble_dict['function']]
+                                try:
+                                    disassemble_dict['function_name'] = self.neo_smart_contract_function_dict[
+                                        disassemble_dict['function']]
+                                except KeyError:
+                                    if reverse_hex(disassemble_dict['contract']) in ["a32bcf5d7082f740a4007b16e812cf66a457c3d4", "91b83e96f2a7c4fdf0c1688441ec61986c7cae26"]:
+                                        exit('Missing Switcheo Contract Function.')
+                                    else:
+                                        disassemble_dict['function_name'] = 'passUnknown'
                     if disassemble_list[0] == 'PACK':
                         is_pack = True
                 if is_switcheo:
@@ -309,6 +317,9 @@ class SwitcheoSmartContract(object):
                         print(contract_hash)
                         exit('Key Error')
                     return self.deserialize_script[disassemble_dict['function_name']](block, txn, script_disassembler)
+
+    def deserialize_pass_unknown(self, block, txn, script):
+        pass
 
     def deserialize_nkn_unlock_advisor(self, block, txn, script):
         pass
