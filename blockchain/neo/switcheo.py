@@ -43,6 +43,7 @@ class SwitcheoSmartContract(object):
             'createAtomicSwap': self.deserialize_create_atomic_swap,
             'deploy': self.deserialize_deploy,
             'deposit': self.deserialize_deposit,
+            'executeAtomicSwap': self.deserialize_execute_atomic_swap,
             'fillOffer': self.deserialize_fill_offer,
             'freezeTrading': self.deserialize_freeze_trading,
             'generate_tokens': self.deserizlize_generate_tokens,
@@ -86,6 +87,7 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
             str(binascii.hexlify(b'createAtomicSwap').decode('utf-8')): 'createAtomicSwap',
+            str(binascii.hexlify(b'executeAtomicSwap').decode('utf-8')): 'executeAtomicSwap',
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
             str(binascii.hexlify(b'disableTransfer').decode('utf-8')): 'disableTransfer',
             str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
@@ -535,6 +537,38 @@ class SwitcheoSmartContract(object):
             }
             deposit_dict['deposits'].append(out_dict)
         return deposit_dict
+
+    def deserialize_execute_atomic_swap(self, block, txn, script):
+        preimage_original = str(script[0])
+        pad_length = int(preimage_original.split()[0][9:]) * 2
+        preimage_original = self.zero_pad_if_odd_length_string(preimage_original.split()[1][2:],
+                                                               output_size=pad_length)
+        preimage = reverse_hex(preimage_original)
+
+        hash_of_secret_original = str(script[4])
+        # hashOfSecret
+        pad_length = int(hash_of_secret_original.split()[0][9:]) * 2
+        hash_of_secret_original = self.zero_pad_if_odd_length_string(hash_of_secret_original.split()[1][2:],
+                                                                     output_size=pad_length)
+        hash_of_secret = reverse_hex(hash_of_secret_original)
+
+        execute_atomic_swap_dict = {
+            'block_hash': block['hash'][2:],
+            'block_number': block['index'],
+            'block_size': block['size'],
+            'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
+            'transaction_hash': txn['txid'][2:],
+            'transaction_type': txn['type'],
+            'switcheo_transaction_type': 'executeAtomicSwap',
+            'hash_of_secret_original': hash_of_secret_original,
+            'hash_of_secret': hash_of_secret,
+            'preimage_original': preimage_original,
+            'preimage': preimage
+        }
+        return execute_atomic_swap_dict
 
     def deserialize_fill_offer(self, block, txn, script):
         contract_hash = None
