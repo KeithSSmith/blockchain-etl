@@ -270,7 +270,8 @@ class SwitcheoSmartContract(object):
             # if contract_hash is None:
             for s in script_disassembler:
                 if str(s).split()[0] in self.neo_contract_key_list and contract_hash is None:
-                    contract_hash = reverse_hex(str(s).split()[1][2:])
+                    contract_hash_pad = self.zero_pad_if_odd_length_string(str(s).split()[1][2:], output_size=40)
+                    contract_hash = reverse_hex(contract_hash_pad)
             if contract_hash != '78e6d16b914fe15bc16150aeb11d0c2a8e532bdd':
                 for disassemble in script_disassembler:
                     disassemble_list = str(disassemble).split()
@@ -278,8 +279,10 @@ class SwitcheoSmartContract(object):
                         if 'function' not in disassemble_dict and disassemble_list[0].startswith('PUSHBYTES'):
                             disassemble_dict['function'] = disassemble_list[1][2:]
                         if 'contract' not in disassemble_dict and disassemble_list[0] in self.neo_contract_key_list:
-                            disassemble_dict['contract'] = disassemble_list[1][2:]
-                            if is_switcheo and disassemble_list[1][2:] in ['3fbc607c12c28736343224a4b4d8f513a5c27ca8', reverse_hex('ab38352559b8b203bde5fddfa0b07d8b2525e132')]:  # Custom Code for transfering MCT tokens.
+                            disassemble_dict_contract = self.zero_pad_if_odd_length_string(disassemble_list[1][2:],
+                                                                                           output_size=40)
+                            disassemble_dict['contract'] = disassemble_dict_contract
+                            if is_switcheo and disassemble_dict_contract in ['3fbc607c12c28736343224a4b4d8f513a5c27ca8', reverse_hex('ab38352559b8b203bde5fddfa0b07d8b2525e132')]:  # Custom Code for transfering MCT tokens.
                                 disassemble_dict['function_name'] = self.neo_smart_contract_function_dict[
                                     disassemble_dict['function']]
                             if reverse_hex(disassemble_dict['contract']) in self.neo_contract_list:
