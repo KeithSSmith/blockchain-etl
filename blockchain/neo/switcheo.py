@@ -39,6 +39,7 @@ class SwitcheoSmartContract(object):
             'announceCancel': self.deserialize_announce_withdraw,
             'announceWithdraw': self.deserialize_announce_withdraw,
             'approve': self.deserialize_approve,
+            'cancelAtomicSwap': self.deserialize_cancel_atomic_swap,
             'cancelOffer': self.deserialize_cancel,
             'createAtomicSwap': self.deserialize_create_atomic_swap,
             'deploy': self.deserialize_deploy,
@@ -88,6 +89,7 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
             str(binascii.hexlify(b'createAtomicSwap').decode('utf-8')): 'createAtomicSwap',
             str(binascii.hexlify(b'executeAtomicSwap').decode('utf-8')): 'executeAtomicSwap',
+            str(binascii.hexlify(b'cancelAtomicSwap').decode('utf-8')): 'cancelAtomicSwap',
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
             str(binascii.hexlify(b'disableTransfer').decode('utf-8')): 'disableTransfer',
             str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
@@ -349,6 +351,52 @@ class SwitcheoSmartContract(object):
     def deserialize_approve(self, block, txn, script):
         pass
 
+    def deserialize_cancel_atomic_swap(self, block, txn, script):
+        burn_cancel_fees_original = str(script[0])
+        # burnTokens - Bool
+        if burn_cancel_fees_original == 'PUSH1':
+            burn_cancel_fees = True
+        elif burn_cancel_fees_original == 'PUSH0':
+            burn_cancel_fees = False
+
+        cancel_fee_amount_original = str(script[1])
+        if cancel_fee_amount_original.startswith('PUSH') and not cancel_fee_amount_original.startswith('PUSHBYTES'):
+            cancel_fee_amount_original = cancel_fee_amount_original.split()[0]
+            cancel_fee_amount = int(cancel_fee_amount_original[4:])
+            cancel_fee_amount_fixed8 = SwitcheoFixed8(cancel_fee_amount).ToString()
+        else:
+            cancel_fee_amount_original = self.zero_pad_if_odd_length_string(cancel_fee_amount_original.split()[1][2:])
+            cancel_fee_amount = int(reverse_hex(cancel_fee_amount_original), 16)
+            cancel_fee_amount_fixed8 = SwitcheoFixed8(cancel_fee_amount).ToString()
+
+        hash_of_secret_original = str(script[2])
+        # hashOfSecret
+        pad_length = int(hash_of_secret_original.split()[0][9:]) * 2
+        hash_of_secret_original = self.zero_pad_if_odd_length_string(hash_of_secret_original.split()[1][2:],
+                                                                     output_size=pad_length)
+        hash_of_secret = reverse_hex(hash_of_secret_original)
+
+        cancel_atomic_swap_dict = {
+            'block_hash': block['hash'][2:],
+            'block_number': block['index'],
+            'block_size': block['size'],
+            'block_time': block['time'],
+            'block_date': datetime.datetime.utcfromtimestamp(block['time']).strftime('%Y-%m-%d'),
+            'contract_hash': txn['contract_hash'],
+            'contract_hash_version': txn['contract_hash_version'],
+            'transaction_hash': txn['txid'][2:],
+            'transaction_type': txn['type'],
+            'switcheo_transaction_type': 'executeAtomicSwap',
+            'burn_cancel_fees_original': burn_cancel_fees_original,
+            'burn_cancel_fees': burn_cancel_fees,
+            'cancel_fee_amount_original': cancel_fee_amount_original,
+            'cancel_fee_amount': cancel_fee_amount,
+            'cancel_fee_amount_fixed8': cancel_fee_amount_fixed8,
+            'hash_of_secret_original': hash_of_secret_original,
+            'hash_of_secret': hash_of_secret
+        }
+        return cancel_atomic_swap_dict
+
     def deserialize_cancel(self, block, txn, script):
         cancel_dict = {
             'block_hash': block['hash'][2:],
@@ -545,7 +593,7 @@ class SwitcheoSmartContract(object):
                                                                output_size=pad_length)
         preimage = reverse_hex(preimage_original)
 
-        hash_of_secret_original = str(script[4])
+        hash_of_secret_original = str(script[1])
         # hashOfSecret
         pad_length = int(hash_of_secret_original.split()[0][9:]) * 2
         hash_of_secret_original = self.zero_pad_if_odd_length_string(hash_of_secret_original.split()[1][2:],
