@@ -550,8 +550,9 @@ class SwitcheoSmartContract(object):
 
             maker_fee_burn_amount_original = str(script[1])
             # BigInteger makerFeeAmount
-            if maker_fee_burn_amount_original == 'PUSH0':
-                maker_fee_burn_amount = 0
+            if maker_fee_burn_amount_original.startswith('PUSH') and not maker_fee_burn_amount_original.startswith('PUSHBYTES'):
+                maker_fee_burn_amount_original = maker_fee_burn_amount_original.split()[0]
+                maker_fee_burn_amount = int(maker_fee_burn_amount_original[4:])
                 maker_fee_burn_amount_fixed8 = SwitcheoFixed8(maker_fee_burn_amount).ToString()
             else:
                 maker_fee_burn_amount_original = self.zero_pad_if_odd_length_string(maker_fee_burn_amount_original.split()[1][2:])
@@ -567,8 +568,10 @@ class SwitcheoSmartContract(object):
 
             taker_fee_burn_amount_original = str(script[3])
             # BigInteger takerFeeAmount
-            if taker_fee_burn_amount_original == 'PUSH0':
-                taker_fee_burn_amount = 0
+            if taker_fee_burn_amount_original.startswith('PUSH') and not taker_fee_burn_amount_original.startswith('PUSHBYTES'):
+                taker_fee_burn_amount_original = taker_fee_burn_amount_original.split()[0]
+                taker_fee_burn_amount = int(taker_fee_burn_amount_original[4:])
+                taker_fee_burn_amount_fixed8 = SwitcheoFixed8(taker_fee_burn_amount).ToString()
             else:
                 taker_fee_burn_amount_original = self.zero_pad_if_odd_length_string(taker_fee_burn_amount_original.split()[1][2:])
                 taker_fee_burn_amount = int(reverse_hex(taker_fee_burn_amount_original), 16)
@@ -585,7 +588,7 @@ class SwitcheoSmartContract(object):
             taker_amount_original = str(script[5])
             # BigInteger amountToTake
             if taker_amount_original.startswith('PUSH') and not taker_amount_original.startswith('PUSHBYTES'):
-                taker_amount_original = str(script[5]).split()[0]
+                taker_amount_original = taker_amount_original.split()[0]
                 taker_amount = int(taker_amount_original[4:])
                 taker_amount_fixed8 = SwitcheoFixed8(taker_amount).ToString()
             else:
@@ -753,8 +756,10 @@ class SwitcheoSmartContract(object):
         elif contract_hash in ['a32bcf5d7082f740a4007b16e812cf66a457c3d4', 'b9a70a85136ed73f1f94e83edfee68c00daf412f']:
             maker_fee_amount_original = str(script[1])
             # byte[] makerFeeAvailableAmount
-            if maker_fee_amount_original == 'PUSH0':
-                maker_fee_amount = 0
+            if maker_fee_amount_original.startswith('PUSH') and not maker_fee_amount_original.startswith('PUSHBYTES'):
+                maker_fee_amount_original = maker_fee_amount_original.split()[0]
+                maker_fee_amount = int(maker_fee_amount_original[4:])
+                maker_fee_amount_fixed8 = SwitcheoFixed8(maker_fee_amount).ToString()
             else:
                 maker_fee_amount_original = self.zero_pad_if_odd_length_string(maker_fee_amount_original.split()[1][2:])
                 maker_fee_amount = int(reverse_hex(maker_fee_amount_original), 16)
@@ -770,11 +775,16 @@ class SwitcheoSmartContract(object):
 
             want_amount_original = str(script[3])
             # byte[] wantAmount
-            pad_length = int(want_amount_original.split()[0][9:]) * 2
-            want_amount_original = self.zero_pad_if_odd_length_string(want_amount_original.split()[1][2:],
-                                                                      output_size=pad_length)
-            want_amount = int(reverse_hex(want_amount_original), 16)
-            want_amount_fixed8 = SwitcheoFixed8(want_amount).ToString()
+            if want_amount_original.startswith('PUSH') and not want_amount_original.startswith('PUSHBYTES'):
+                want_amount_original = want_amount_original.split()[0]
+                want_amount = int(want_amount_original[4:])
+                want_amount_fixed8 = SwitcheoFixed8(want_amount).ToString()
+            else:
+                pad_length = int(want_amount_original.split()[0][9:]) * 2
+                want_amount_original = self.zero_pad_if_odd_length_string(want_amount_original.split()[1][2:],
+                                                                          output_size=pad_length)
+                want_amount = int(reverse_hex(want_amount_original), 16)
+                want_amount_fixed8 = SwitcheoFixed8(want_amount).ToString()
 
             want_asset_original = str(script[4])
             # byte[] wantAssetID
@@ -787,7 +797,7 @@ class SwitcheoSmartContract(object):
             offer_amount_original = str(script[5])
             # byte[] offerAmount
             if offer_amount_original.startswith('PUSH') and not offer_amount_original.startswith('PUSHBYTES'):
-                offer_amount_original = str(script[5]).split()[0]
+                offer_amount_original = offer_amount_original.split()[0]
                 offer_amount = int(offer_amount_original[4:])
                 offer_amount_fixed8 = SwitcheoFixed8(offer_amount).ToString()
             else:
