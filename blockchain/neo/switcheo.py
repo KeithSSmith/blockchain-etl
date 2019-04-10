@@ -54,7 +54,8 @@ class SwitcheoSmartContract(object):
             'unfreezeTrading': self.deserialize_unfreeze_trading,
             'withdraw': self.deserialize_withdraw,
             'withdrawAssets': self.deserialize_withdraw_assets,
-            'withdrawal': self.deserialize_withdrawal
+            'withdrawal': self.deserialize_withdrawal,
+            'unlockAdvisor': self.deserialize_nkn_unlock_advisor
         }
         self.neo_smart_contract_function_dict = {
             str(binascii.hexlify(b'deposit').decode('utf-8')): 'deposit',
@@ -78,7 +79,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'unfreezeTrading').decode('utf-8')): 'unfreezeTrading',
             str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist',
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
-            str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens'
+            str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
+            str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -300,6 +302,9 @@ class SwitcheoSmartContract(object):
                         print(contract_hash)
                         exit('Key Error')
                     return self.deserialize_script[disassemble_dict['function_name']](block, txn, script_disassembler)
+
+    def deserialize_nkn_unlock_advisor(self, block, txn, script):
+        pass
 
     def deserialize_add_to_whitelist(self, block, txn, script):
         pass
