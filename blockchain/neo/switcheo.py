@@ -56,7 +56,8 @@ class SwitcheoSmartContract(object):
             'withdrawAssets': self.deserialize_withdraw_assets,
             'withdrawal': self.deserialize_withdrawal,
             'unlockAdvisor': self.deserialize_nkn_unlock_advisor,
-            'inflation': self.deserialize_phx_inflation
+            'inflation': self.deserialize_phx_inflation,
+            'unlockTeam': self.deserialize_unlock_team
         }
         self.neo_smart_contract_function_dict = {
             str(binascii.hexlify(b'deposit').decode('utf-8')): 'deposit',
@@ -82,7 +83,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
             str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
-            str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation'
+            str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation',
+            str(binascii.hexlify(b'unlockTeam').decode('utf-8')): 'unlockTeam'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -310,6 +312,9 @@ class SwitcheoSmartContract(object):
         pass
 
     def deserialize_phx_inflation(self, block, txn, script):
+        pass
+
+    def deserialize_unlock_team(self, block, txn, script):
         pass
 
     def deserialize_add_to_whitelist(self, block, txn, script):
