@@ -292,7 +292,7 @@ class SwitcheoSmartContract(object):
                             if is_switcheo and disassemble_dict_contract in ['3fbc607c12c28736343224a4b4d8f513a5c27ca8', reverse_hex('ab38352559b8b203bde5fddfa0b07d8b2525e132')]:  # Custom Code for transfering MCT tokens.
                                 disassemble_dict['function_name'] = self.neo_smart_contract_function_dict[
                                     disassemble_dict['function']]
-                            if reverse_hex(disassemble_dict['contract']) in self.neo_contract_list:
+                            if reverse_hex(disassemble_dict['contract']) in self.neo_contract_list and 'function' in disassemble_dict:
                                 is_switcheo = True
                                 disassemble_dict['function_name'] = self.neo_smart_contract_function_dict[
                                     disassemble_dict['function']]
