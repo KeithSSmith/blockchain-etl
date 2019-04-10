@@ -55,7 +55,8 @@ class SwitcheoSmartContract(object):
             'withdraw': self.deserialize_withdraw,
             'withdrawAssets': self.deserialize_withdraw_assets,
             'withdrawal': self.deserialize_withdrawal,
-            'unlockAdvisor': self.deserialize_nkn_unlock_advisor
+            'unlockAdvisor': self.deserialize_nkn_unlock_advisor,
+            'inflation': self.deserialize_phx_inflation
         }
         self.neo_smart_contract_function_dict = {
             str(binascii.hexlify(b'deposit').decode('utf-8')): 'deposit',
@@ -80,7 +81,8 @@ class SwitcheoSmartContract(object):
             str(binascii.hexlify(b'removeFromWhitelist').decode('utf-8')): 'removeFromWhitelist',
             str(binascii.hexlify(b'deploy').decode('utf-8')): 'deploy',
             str(binascii.hexlify(b'generate_tokens').decode('utf-8')): 'generate_tokens',
-            str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor'
+            str(binascii.hexlify(b'unlockAdvisor').decode('utf-8')): 'unlockAdvisor',
+            str(binascii.hexlify(b'inflation').decode('utf-8')): 'inflation'
         }
         self.offer_hash_functions = {
             'cancel': self.offer_hash_cancel,
@@ -259,6 +261,7 @@ class SwitcheoSmartContract(object):
         is_pack = False
         is_switcheo = False
         contract_hash = None
+        print(txn)
         if 'vout' in txn:
             for txn_vout in txn['vout']:
                 if txn_vout['address'] in self.neo_address_list:
@@ -304,6 +307,9 @@ class SwitcheoSmartContract(object):
                     return self.deserialize_script[disassemble_dict['function_name']](block, txn, script_disassembler)
 
     def deserialize_nkn_unlock_advisor(self, block, txn, script):
+        pass
+
+    def deserialize_phx_inflation(self, block, txn, script):
         pass
 
     def deserialize_add_to_whitelist(self, block, txn, script):
