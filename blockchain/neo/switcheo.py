@@ -190,11 +190,18 @@ class SwitcheoSmartContract(object):
                 neo_node_max_height = neo_node_height
             neo_node_protocol = neo_node[0]
             neo_node_url = neo_node[1][2:]
-            neo_node_port = neo_node[2]
             if neo_node_protocol == 'https':
                 neo_node_rpc_tls = True
+                if neo_node[2]:
+                    neo_node_port = neo_node[2]
+                else:
+                    neo_node_port = 443
             elif neo_node_protocol == 'http':
                 neo_node_rpc_tls = False
+                if neo_node[2]:
+                    neo_node_port = neo_node[2]
+                else:
+                    neo_node_port = 80
             else:
                 exit(222)
             neo_node_dict['neo_node_url'] = neo_node_url
