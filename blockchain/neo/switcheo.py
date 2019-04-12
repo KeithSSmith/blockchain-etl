@@ -190,18 +190,12 @@ class SwitcheoSmartContract(object):
                 neo_node_max_height = neo_node_height
             neo_node_protocol = neo_node[0]
             neo_node_url = neo_node[1][2:]
+            if not neo_node_url.endswith('neo.neonexchange.org'):
+                neo_node_port = neo_node[2]
             if neo_node_protocol == 'https':
                 neo_node_rpc_tls = True
-                try:
-                    neo_node_port = neo_node[2]
-                except IndexError:
-                    neo_node_port = 443
             elif neo_node_protocol == 'http':
                 neo_node_rpc_tls = False
-                try:
-                    neo_node_port = neo_node[2]
-                except IndexError:
-                    neo_node_port = 80
             else:
                 exit(222)
             neo_node_dict['neo_node_url'] = neo_node_url
@@ -213,7 +207,8 @@ class SwitcheoSmartContract(object):
         neo_node_max_height_list = []
         for neo_node in neo_node_list:
             if neo_node['neo_node_height'] == neo_node_max_height and 'neo.org' not in neo_node['neo_node_url']\
-                    and 'rustylogic.ddns.net' not in neo_node['neo_node_url']:
+                    and 'rustylogic.ddns.net' not in neo_node['neo_node_url']\
+                    and not neo_node['neo_node_url'].endswith('neo.neonexchange.org'):
                 neo_node_max_height_list.append(neo_node)
 
         rand_int = random.randint(0, len(neo_node_max_height_list) - 1)
