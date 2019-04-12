@@ -192,15 +192,15 @@ class SwitcheoSmartContract(object):
             neo_node_url = neo_node[1][2:]
             if neo_node_protocol == 'https':
                 neo_node_rpc_tls = True
-                if neo_node[2]:
+                try:
                     neo_node_port = neo_node[2]
-                else:
+                except IndexError:
                     neo_node_port = 443
             elif neo_node_protocol == 'http':
                 neo_node_rpc_tls = False
-                if neo_node[2]:
+                try:
                     neo_node_port = neo_node[2]
-                else:
+                except IndexError:
                     neo_node_port = 80
             else:
                 exit(222)
