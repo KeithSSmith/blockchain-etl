@@ -18,7 +18,7 @@ with open("README.rst", "r") as fh:
 setup(
     name='blockchain-etl',
     python_requires='>=3.6',
-    version='0.1.27',
+    version='0.1.28',
     author='Keith Smith',
     author_email='keith.scotts@gmail.com',
     license='MIT License',

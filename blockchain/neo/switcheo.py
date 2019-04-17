@@ -1144,7 +1144,8 @@ class SwitcheoSmartContract(object):
                 'switcheo_transaction_type': 'transfer',
                 'contract_hash': contract_hash
             }
-        else:
+            return transfer_dict
+        elif contract_hash in ['a32bcf5d7082f740a4007b16e812cf66a457c3d4', 'b9a70a85136ed73f1f94e83edfee68c00daf412f', '91b83e96f2a7c4fdf0c1688441ec61986c7cae26', '01bafeeafe62e651efc3a530fde170cf2f7b09bd', 'ab38352559b8b203bde5fddfa0b07d8b2525e132']:
             transfer_index = 0
             if str(script[1]).split()[0] == 'DROP':
                 transfer_index = 2
@@ -1196,7 +1197,7 @@ class SwitcheoSmartContract(object):
                 'from_address_original': from_address_original,
                 'from_address': neo_get_address_from_scripthash(scripthash=reverse_hex(from_address_original))
             }
-        return transfer_dict
+            return transfer_dict
 
     def deserialize_unfreeze_trading(self, block, txn, script):
         unfreeze_trading_dict = {
