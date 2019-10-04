@@ -190,7 +190,7 @@ class SwitcheoSmartContract(object):
                 neo_node_max_height = neo_node_height
             neo_node_protocol = neo_node[0]
             neo_node_url = neo_node[1][2:]
-            if not neo_node_url.endswith('neo.neonexchange.org'):
+            if not neo_node_url.endswith('neo.neonexchange.org') and not neo_node_url.endswith('neo.nash.io'):
                 neo_node_port = neo_node[2]
             if neo_node_protocol == 'https':
                 neo_node_rpc_tls = True
