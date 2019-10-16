@@ -208,7 +208,8 @@ class SwitcheoSmartContract(object):
         for neo_node in neo_node_list:
             if neo_node['neo_node_height'] == neo_node_max_height and 'neo.org' not in neo_node['neo_node_url']\
                     and 'rustylogic.ddns.net' not in neo_node['neo_node_url']\
-                    and not neo_node['neo_node_url'].endswith('neo.neonexchange.org'):
+                    and not neo_node['neo_node_url'].endswith('neonexchange.org')\
+                    and not neo_node['neo_node_url'].endswith('nash.io'):
                 neo_node_max_height_list.append(neo_node)
 
         rand_int = random.randint(0, len(neo_node_max_height_list) - 1)
